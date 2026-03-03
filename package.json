@@ -1,0 +1,27 @@
+{
+  "name": "clara-ai-pipeline",
+  "version": "1.0.0",
+  "description": "Zero-cost automation pipeline: Demo Call -> Retell Agent Draft -> Onboarding Updates -> Agent Revision",
+  "main": "scripts/runPipeline.js",
+  "scripts": {
+    "pipeline": "node scripts/runPipeline.js",
+    "server": "node scripts/server.js",
+    "extract": "node scripts/extract.js",
+    "generate": "node scripts/generateAgent.js",
+    "n8n:up": "docker compose -f workflows/docker-compose.yml up -d",
+    "n8n:down": "docker compose -f workflows/docker-compose.yml down",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zaidtausif56/clara-ai-pipeline.git"
+  },
+  "keywords": ["clara", "retell", "ai-pipeline", "voice-agent", "automation"],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/zaidtausif56/clara-ai-pipeline/issues"
+  },
+  "homepage": "https://github.com/zaidtausif56/clara-ai-pipeline#readme"
+}

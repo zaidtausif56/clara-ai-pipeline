@@ -1,0 +1,152 @@
+{
+  "name": "Clara AI Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clara-demo",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-demo",
+      "name": "Demo Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 200],
+      "webhookId": "clara-demo"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:3000/pipeline/demo",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "http-demo",
+      "name": "Run Demo Pipeline",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 200]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clara-onboarding",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-onboarding",
+      "name": "Onboarding Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 420],
+      "webhookId": "clara-onboarding"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:3000/pipeline/onboarding",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "http-onboarding",
+      "name": "Run Onboarding Pipeline",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 420]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clara-batch",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-batch",
+      "name": "Batch Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 640],
+      "webhookId": "clara-batch"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:3000/pipeline/run",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body || {}) }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "http-batch",
+      "name": "Run Batch Pipeline",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 640]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "clara-status",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-status",
+      "name": "Status Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 860],
+      "webhookId": "clara-status"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://host.docker.internal:3000/pipeline/status",
+        "options": {}
+      },
+      "id": "http-status",
+      "name": "Get Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 860]
+    }
+  ],
+  "connections": {
+    "Demo Webhook": {
+      "main": [
+        [{ "node": "Run Demo Pipeline", "type": "main", "index": 0 }]
+      ]
+    },
+    "Onboarding Webhook": {
+      "main": [
+        [{ "node": "Run Onboarding Pipeline", "type": "main", "index": 0 }]
+      ]
+    },
+    "Batch Webhook": {
+      "main": [
+        [{ "node": "Run Batch Pipeline", "type": "main", "index": 0 }]
+      ]
+    },
+    "Status Webhook": {
+      "main": [
+        [{ "node": "Get Status", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "instanceId": "clara-ai-pipeline"
+  }
+}
