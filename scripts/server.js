@@ -8,6 +8,10 @@
 //   GET  /pipeline/status       - get all task statuses
 //   GET  /pipeline/status/:id   - get status for a specific account
 //   GET  /health                - health check
+//
+// Input formats:
+//   JSON body: { "transcript": "...", "account_id": "..." }
+//   Multipart: audio file (.m4a) with optional account_id field
 
 const http = require('http');
 const fs = require('fs');
@@ -18,14 +22,27 @@ const { generateAgentSpec } = require('./generateAgent');
 const { mergeMemos } = require('./merge');
 const { generateChangelog } = require('./diff');
 const { getAllTasks, findTask, upsertTask, completeTask } = require('./taskTracker');
+const { isAudioFile, transcribeAudio, AUDIO_EXTENSIONS } = require('./transcribe');
 const logger = require('./logger');
 
 const PORT = process.env.PORT || 3000;
 const ROOT = path.resolve(__dirname, '..');
 const ACCOUNTS_DIR = path.join(ROOT, 'outputs', 'accounts');
+const UPLOADS_DIR = path.join(ROOT, 'inputs', 'uploads');
+
+// Ensure uploads dir exists
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 function parseBody(req) {
   return new Promise((resolve, reject) => {
+    const contentType = req.headers['content-type'] || '';
+
+    // Handle multipart/form-data (audio file uploads)
+    if (contentType.includes('multipart/form-data')) {
+      return parseMultipart(req, contentType).then(resolve).catch(reject);
+    }
+
+    // Handle JSON body
     let data = '';
     req.on('data', (chunk) => (data += chunk));
     req.on('end', () => {
@@ -38,6 +55,75 @@ function parseBody(req) {
     });
     req.on('error', reject);
   });
+}
+
+// Simple multipart/form-data parser for audio uploads
+function parseMultipart(req, contentType) {
+  return new Promise((resolve, reject) => {
+    const boundaryMatch = contentType.match(/boundary=(.+)/);
+    if (!boundaryMatch) return reject(new Error('No boundary in multipart'));
+    const boundary = boundaryMatch[1];
+
+    const chunks = [];
+    req.on('data', (chunk) => chunks.push(chunk));
+    req.on('end', () => {
+      try {
+        const body = Buffer.concat(chunks);
+        const result = { _files: {} };
+        const parts = splitMultipartBuffer(body, boundary);
+
+        for (const part of parts) {
+          const headerEnd = part.indexOf('\r\n\r\n');
+          if (headerEnd === -1) continue;
+
+          const headerStr = part.slice(0, headerEnd).toString();
+          const content = part.slice(headerEnd + 4);
+
+          const nameMatch = headerStr.match(/name="([^"]+)"/);
+          if (!nameMatch) continue;
+          const fieldName = nameMatch[1];
+
+          const filenameMatch = headerStr.match(/filename="([^"]+)"/);
+          if (filenameMatch) {
+            // This is a file field
+            const filename = filenameMatch[1];
+            // Remove trailing \r\n from content
+            const fileContent = content.slice(0, content.length - 2);
+            result._files[fieldName] = { filename, data: fileContent };
+          } else {
+            // This is a text field
+            result[fieldName] = content.toString().trim();
+          }
+        }
+
+        resolve(result);
+      } catch (err) {
+        reject(new Error(`Failed to parse multipart: ${err.message}`));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+function splitMultipartBuffer(body, boundary) {
+  const boundaryBuf = Buffer.from(`--${boundary}`);
+  const parts = [];
+  let start = 0;
+
+  while (true) {
+    const idx = body.indexOf(boundaryBuf, start);
+    if (idx === -1) break;
+    if (start > 0) {
+      parts.push(body.slice(start, idx));
+    }
+    start = idx + boundaryBuf.length;
+    // Skip \r\n after boundary
+    if (body[start] === 0x0d && body[start + 1] === 0x0a) start += 2;
+    // Check for closing boundary --
+    if (body[start] === 0x2d && body[start + 1] === 0x2d) break;
+  }
+
+  return parts;
 }
 
 function sendJSON(res, statusCode, data) {
@@ -54,17 +140,56 @@ function writeJSON(filePath, data) {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
 }
 
+// Helper: extract transcript from request body (handles both text and audio uploads)
+async function getTranscriptFromBody(body) {
+  // If body has a text transcript, use it directly
+  if (body.transcript) {
+    return { transcript: body.transcript, source: 'text' };
+  }
+
+  // If body has an uploaded audio file, transcribe it
+  if (body._files) {
+    const fileField = body._files.audio || body._files.file || Object.values(body._files)[0];
+    if (fileField) {
+      const ext = path.extname(fileField.filename).toLowerCase();
+      if (!AUDIO_EXTENSIONS.includes(ext)) {
+        throw new Error(`Unsupported audio format: ${ext}. Supported: ${AUDIO_EXTENSIONS.join(', ')}`);
+      }
+
+      // Write uploaded file to disk temporarily
+      const tmpPath = path.join(UPLOADS_DIR, `${Date.now()}-${fileField.filename}`);
+      fs.writeFileSync(tmpPath, fileField.data);
+      logger.info(`Saved uploaded audio: ${fileField.filename} (${fileField.data.length} bytes)`);
+
+      try {
+        const transcript = await transcribeAudio(tmpPath);
+        return { transcript, source: 'audio', audioFile: fileField.filename };
+      } finally {
+        // Clean up temp file
+        try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
+      }
+    }
+  }
+
+  return { transcript: null, source: null };
+}
+
 // Route: POST /pipeline/demo
 // Body: { "account_id": "acme-fire", "transcript": "..." }
+// OR multipart with audio file (.m4a) and optional account_id field
 async function handleDemo(req, res) {
   try {
     const body = await parseBody(req);
-    if (!body.transcript) {
-      return sendJSON(res, 400, { error: 'Missing "transcript" in request body' });
+    const { transcript, source, audioFile } = await getTranscriptFromBody(body);
+
+    if (!transcript) {
+      return sendJSON(res, 400, {
+        error: 'Missing input: provide either "transcript" (text) in JSON body, or upload an audio file (.m4a)',
+      });
     }
 
     const model = await pickModel();
-    const memo = await extractFromTranscript(body.transcript, { model });
+    const memo = await extractFromTranscript(transcript, { model });
     const accountId = body.account_id || memo.account_id || slugify(memo.company_name);
     memo.account_id = accountId;
 
@@ -82,6 +207,8 @@ async function handleDemo(req, res) {
     sendJSON(res, 200, {
       status: 'success',
       account_id: accountId,
+      input_source: source,
+      ...(audioFile ? { audio_file: audioFile } : {}),
       memo,
       agent: agentSpec,
     });
@@ -93,14 +220,19 @@ async function handleDemo(req, res) {
 
 // Route: POST /pipeline/onboarding
 // Body: { "account_id": "acme-fire", "transcript": "..." }
+// OR multipart with audio file (.m4a) and account_id field
 async function handleOnboarding(req, res) {
   try {
     const body = await parseBody(req);
     if (!body.account_id) {
       return sendJSON(res, 400, { error: 'Missing "account_id" in request body' });
     }
-    if (!body.transcript) {
-      return sendJSON(res, 400, { error: 'Missing "transcript" in request body' });
+
+    const { transcript, source, audioFile } = await getTranscriptFromBody(body);
+    if (!transcript) {
+      return sendJSON(res, 400, {
+        error: 'Missing input: provide either "transcript" (text) in JSON body, or upload an audio file (.m4a)',
+      });
     }
 
     const accountId = body.account_id;
@@ -123,7 +255,7 @@ async function handleOnboarding(req, res) {
       };
     }
 
-    const onboardingData = await extractFromTranscript(body.transcript, { model });
+    const onboardingData = await extractFromTranscript(transcript, { model });
     onboardingData.account_id = accountId;
     upsertTask(accountId, 'onboarding_extracted');
 
@@ -145,6 +277,8 @@ async function handleOnboarding(req, res) {
     sendJSON(res, 200, {
       status: 'success',
       account_id: accountId,
+      input_source: source,
+      ...(audioFile ? { audio_file: audioFile } : {}),
       memo: merged,
       agent: agentSpec,
       changelog,

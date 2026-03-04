@@ -6,7 +6,13 @@ const logger = require('./logger');
 
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const PREFERRED_MODELS = ['llama3.2', 'mistral', 'llama3', 'llama2', 'gemma'];
-const MAX_RETRIES = 2;
+const MAX_RETRIES = 3;
+
+// Chunking config — conservative limits to stay well within Ollama context windows
+// Most local models support 4096-8192 tokens; ~4 chars/token → ~16K-32K chars.
+// We reserve ~2K chars for the prompt template + schema, leaving ~10K for transcript.
+const MAX_TRANSCRIPT_CHARS = parseInt(process.env.MAX_TRANSCRIPT_CHARS, 10) || 10000;
+const CHUNK_OVERLAP_CHARS = parseInt(process.env.CHUNK_OVERLAP_CHARS, 10) || 500;
 
 // Account Memo schema used for LLM prompt and validation
 const MEMO_SCHEMA = {
@@ -33,13 +39,18 @@ const MEMO_SCHEMA = {
 
 const SCHEMA_STRING = JSON.stringify(MEMO_SCHEMA, null, 2);
 
-function buildExtractionPrompt(transcriptText) {
+function buildExtractionPrompt(transcriptText, chunkInfo) {
+  const chunkHeader = chunkInfo
+    ? `\nNote: This is chunk ${chunkInfo.index} of ${chunkInfo.total} from a longer transcript. Extract whatever information is present in THIS chunk. Fields not mentioned in this chunk should use null or [].`
+    : '';
+
   return `You are a data extraction assistant for a call answering service company called Clara Answers.
 Extract ONLY explicitly stated information from the following transcript.
 DO NOT invent, assume, or hallucinate any information.
 If a field is not mentioned, use null for single values or [] for arrays.
 For "notes", write a 1-2 sentence summary of the call. If nothing notable, use an empty string.
 For "account_id", derive it from the company_name by lowercasing and replacing spaces/special characters with hyphens.
+${chunkHeader}
 
 Return ONLY valid JSON matching this exact schema (no markdown, no explanation, no code fences):
 
@@ -47,6 +58,123 @@ ${SCHEMA_STRING}
 
 TRANSCRIPT:
 ${transcriptText}`;
+}
+
+// Split a large transcript into overlapping chunks at sentence/paragraph boundaries
+function chunkTranscript(text, maxChars = MAX_TRANSCRIPT_CHARS, overlap = CHUNK_OVERLAP_CHARS) {
+  if (text.length <= maxChars) return [text];
+
+  const chunks = [];
+  let start = 0;
+
+  while (start < text.length) {
+    let end = Math.min(start + maxChars, text.length);
+
+    // Try to break at a paragraph or sentence boundary before the hard limit
+    if (end < text.length) {
+      // Look for paragraph break (double newline) within the last 20% of the chunk
+      const searchStart = Math.max(start, end - Math.floor(maxChars * 0.2));
+      const segment = text.slice(searchStart, end);
+
+      const paraBreak = segment.lastIndexOf('\n\n');
+      if (paraBreak !== -1) {
+        end = searchStart + paraBreak + 2; // include the double newline
+      } else {
+        // Fall back to single newline
+        const lineBreak = segment.lastIndexOf('\n');
+        if (lineBreak !== -1) {
+          end = searchStart + lineBreak + 1;
+        }
+        // else: hard cut at maxChars
+      }
+    }
+
+    chunks.push(text.slice(start, end));
+
+    const minAdvance = maxChars - overlap;
+    start = Math.max(start + minAdvance, end - overlap);
+    // But don't go backwards
+    if (start >= text.length) break;
+  }
+
+  logger.info(`Transcript chunked`, { totalChars: text.length, chunks: chunks.length, maxChars, overlap });
+  return chunks;
+}
+
+// Merge an array of partial memos extracted from chunks into one combined memo
+function mergeChunkMemos(memos) {
+  if (memos.length === 0) return null;
+  if (memos.length === 1) return memos[0];
+
+  const merged = {
+    account_id: null,
+    company_name: null,
+    business_hours: { days: null, start: null, end: null, timezone: null },
+    office_address: null,
+    services_supported: [],
+    emergency_definition: [],
+    emergency_routing_rules: [],
+    non_emergency_routing_rules: [],
+    call_transfer_rules: [],
+    integration_constraints: [],
+    after_hours_flow_summary: null,
+    office_hours_flow_summary: null,
+    questions_or_unknowns: [],
+    notes: '',
+  };
+
+  const noteFragments = [];
+
+  for (const memo of memos) {
+    // Scalars: take first non-null value found
+    if (!merged.company_name && memo.company_name) merged.company_name = memo.company_name;
+    if (!merged.account_id && memo.account_id && memo.account_id !== 'unknown-company') merged.account_id = memo.account_id;
+    if (!merged.office_address && memo.office_address) merged.office_address = memo.office_address;
+    if (!merged.after_hours_flow_summary && memo.after_hours_flow_summary) merged.after_hours_flow_summary = memo.after_hours_flow_summary;
+    if (!merged.office_hours_flow_summary && memo.office_hours_flow_summary) merged.office_hours_flow_summary = memo.office_hours_flow_summary;
+
+    // Business hours: fill in missing sub-fields
+    if (memo.business_hours && typeof memo.business_hours === 'object') {
+      for (const key of ['days', 'start', 'end', 'timezone']) {
+        if (!merged.business_hours[key] && memo.business_hours[key]) {
+          merged.business_hours[key] = memo.business_hours[key];
+        }
+      }
+    }
+
+    // Arrays: union (deduplicate)
+    const arrayFields = [
+      'services_supported', 'emergency_definition', 'emergency_routing_rules',
+      'non_emergency_routing_rules', 'call_transfer_rules', 'integration_constraints',
+      'questions_or_unknowns',
+    ];
+    for (const field of arrayFields) {
+      if (Array.isArray(memo[field])) {
+        for (const item of memo[field]) {
+          if (item && !merged[field].includes(item)) {
+            merged[field].push(item);
+          }
+        }
+      }
+    }
+
+    // Notes: collect fragments to combine later
+    if (memo.notes && typeof memo.notes === 'string' && memo.notes.trim().length > 0) {
+      noteFragments.push(memo.notes.trim());
+    }
+  }
+
+  // Combine notes, removing duplicates
+  const uniqueNotes = [...new Set(noteFragments)];
+  merged.notes = uniqueNotes.join(' ');
+
+  // Ensure account_id
+  if (!merged.account_id) {
+    merged.account_id = slugify(merged.company_name);
+  }
+
+  logger.info('Merged chunk memos', { chunks: memos.length, company: merged.company_name });
+  return merged;
 }
 
 // Send a prompt to Ollama, return raw response text
@@ -80,9 +208,9 @@ function ollamaGenerate(model, prompt) {
     });
 
     req.on('error', (err) => reject(err));
-    req.setTimeout(120000, () => {
+    req.setTimeout(300000, () => {
       req.destroy();
-      reject(new Error('Ollama request timed out (120s)'));
+      reject(new Error('Ollama request timed out (300s)'));
     });
     req.write(body);
     req.end();
@@ -277,15 +405,53 @@ function addUnknown(memo, note) {
 }
 
 // Main extraction: transcript text -> validated Account Memo JSON
+// Automatically chunks large transcripts and merges results.
 async function extractFromTranscript(transcriptText, options = {}) {
   if (!transcriptText || transcriptText.trim().length === 0) {
     throw new Error('Transcript text is empty');
   }
 
   const model = options.model || (await pickModel());
-  const prompt = buildExtractionPrompt(transcriptText);
 
-  logger.info('Starting extraction', { model, transcriptLength: transcriptText.length });
+  // Chunk the transcript if it exceeds the per-request limit
+  const chunks = chunkTranscript(transcriptText);
+
+  if (chunks.length === 1) {
+    // Small transcript — single-pass extraction (original behavior)
+    return _extractSingleChunk(chunks[0], model, null);
+  }
+
+  // Large transcript — extract from each chunk, then merge
+  logger.info(`Large transcript detected (${transcriptText.length} chars). Processing ${chunks.length} chunks...`);
+
+  const chunkMemos = [];
+  for (let i = 0; i < chunks.length; i++) {
+    const chunkInfo = { index: i + 1, total: chunks.length };
+    logger.info(`Extracting chunk ${chunkInfo.index}/${chunkInfo.total} (${chunks[i].length} chars)`);
+    try {
+      const memo = await _extractSingleChunk(chunks[i], model, chunkInfo);
+      chunkMemos.push(memo);
+    } catch (err) {
+      logger.warn(`Chunk ${chunkInfo.index} extraction failed, skipping: ${err.message}`);
+      // Continue with remaining chunks — partial data is better than none
+    }
+  }
+
+  if (chunkMemos.length === 0) {
+    throw new Error('All chunks failed extraction — cannot produce memo');
+  }
+
+  const merged = mergeChunkMemos(chunkMemos);
+  const validated = validateMemo(merged);
+  logger.info('Chunked extraction complete', { account_id: validated.account_id, chunksUsed: chunkMemos.length });
+  return validated;
+}
+
+// Extract from a single chunk (with retries)
+async function _extractSingleChunk(chunkText, model, chunkInfo) {
+  const prompt = buildExtractionPrompt(chunkText, chunkInfo);
+
+  logger.info('Starting extraction', { model, transcriptLength: chunkText.length });
 
   let lastError = null;
 
@@ -303,8 +469,8 @@ async function extractFromTranscript(transcriptText, options = {}) {
         throw new Error('Could not parse JSON from LLM response');
       }
 
-      const validated = validateMemo(parsed);
-      logger.info('Extraction successful', { account_id: validated.account_id });
+      const validated = chunkInfo ? parsed : validateMemo(parsed); // defer validation for chunks until merge
+      logger.info('Extraction successful', { account_id: validated.account_id || '(chunk)' });
       return validated;
     } catch (err) {
       lastError = err;
@@ -322,6 +488,8 @@ module.exports = {
   repairJSON,
   pickModel,
   buildExtractionPrompt,
+  chunkTranscript,
+  mergeChunkMemos,
   MEMO_SCHEMA,
 };
 

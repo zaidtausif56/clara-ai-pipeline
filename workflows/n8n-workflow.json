@@ -23,7 +23,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.body) }}",
         "options": {
-          "timeout": 120000
+          "timeout": 600000
         }
       },
       "id": "http-demo",
@@ -54,7 +54,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.body) }}",
         "options": {
-          "timeout": 120000
+          "timeout": 600000
         }
       },
       "id": "http-onboarding",
@@ -85,7 +85,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.body || {}) }}",
         "options": {
-          "timeout": 300000
+          "timeout": 900000
         }
       },
       "id": "http-batch",

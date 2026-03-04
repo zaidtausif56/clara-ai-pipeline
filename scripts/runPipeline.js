@@ -11,6 +11,7 @@ const { generateAgentSpec } = require('./generateAgent');
 const { mergeMemos } = require('./merge');
 const { generateChangelog } = require('./diff');
 const { upsertTask, completeTask } = require('./taskTracker');
+const { isAudioFile, readInputWithTranscription, AUDIO_EXTENSIONS } = require('./transcribe');
 const logger = require('./logger');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -22,14 +23,23 @@ const OUTPUTS_DIR = path.join(ROOT, 'outputs');
 const ACCOUNTS_DIR = path.join(OUTPUTS_DIR, 'accounts');
 const SUMMARY_FILE = path.join(OUTPUTS_DIR, 'batch_summary.json');
 
+// Supported input extensions: .txt, .json (text), .m4a, .mp3, .wav, .webm, .ogg, .flac (audio)
+const SUPPORTED_EXTENSIONS = ['.txt', '.json', ...AUDIO_EXTENSIONS];
+
 function listInputFiles(dir) {
   if (!fs.existsSync(dir)) return [];
   return fs
     .readdirSync(dir)
-    .filter((f) => f.endsWith('.txt') || f.endsWith('.json'))
+    .filter((f) => {
+      const ext = path.extname(f).toLowerCase();
+      // Skip cached transcript files generated from audio
+      if (f.endsWith('.transcript.txt')) return false;
+      return SUPPORTED_EXTENSIONS.includes(ext);
+    })
     .map((f) => path.join(dir, f));
 }
 
+// Read a text input file (.txt or .json). For audio files, use readInputAuto instead.
 function readInput(filePath) {
   const raw = fs.readFileSync(filePath, 'utf-8');
   if (filePath.endsWith('.json')) {
@@ -41,6 +51,18 @@ function readInput(filePath) {
     }
   }
   return raw;
+}
+
+// Read input that may be a text file or an audio file (.m4a, etc.)
+// Audio files are transcribed to text automatically.
+async function readInputAuto(filePath) {
+  if (isAudioFile(filePath)) {
+    const transcript = await readInputWithTranscription(filePath);
+    if (transcript) return transcript;
+    // Fallback: should not happen, but just in case
+    throw new Error(`Failed to transcribe audio file: ${filePath}`);
+  }
+  return readInput(filePath);
 }
 
 // Convert form JSON into text format the LLM can extract from
@@ -76,8 +98,7 @@ function autoMapByFilename(demoFiles, onboardingFiles) {
   for (const demoFile of demoFiles) {
     const demoBase = path.basename(demoFile, path.extname(demoFile));
     const demoCore = demoBase
-      .replace(/[-_]?(demo|call|recording|transcript)[-_]?/gi, '')
-      .replace(/[-_]+/g, '-')
+      .replace(/[-_]?(demo|call|recording|transcript|audio)[-_]?/gi, '')
       .replace(/^-|-$/g, '')
       .toLowerCase();
 
@@ -86,7 +107,7 @@ function autoMapByFilename(demoFiles, onboardingFiles) {
     for (const obFile of onboardingFiles) {
       const obBase = path.basename(obFile, path.extname(obFile));
       const obCore = obBase
-        .replace(/[-_]?(onboarding|onboard|form|call|recording|transcript)[-_]?/gi, '')
+        .replace(/[-_]?(onboarding|onboard|form|call|recording|transcript|audio)[-_]?/gi, '')
         .replace(/[-_]+/g, '-')
         .replace(/^-|-$/g, '')
         .toLowerCase();
@@ -110,7 +131,7 @@ function autoMapByFilename(demoFiles, onboardingFiles) {
     if (!matchedObs.has(obFile)) {
       const obBase = path.basename(obFile, path.extname(obFile));
       const obCore = obBase
-        .replace(/[-_]?(onboarding|onboard|form|call|recording|transcript)[-_]?/gi, '')
+        .replace(/[-_]?(onboarding|onboard|form|call|recording|transcript|audio)[-_]?/gi, '')
         .replace(/[-_]+/g, '-')
         .replace(/^-|-$/g, '')
         .toLowerCase();
@@ -145,10 +166,15 @@ async function runPipelineA(accountId, demoFilePath, model) {
   const accountDir = path.join(ACCOUNTS_DIR, accountId);
   const v1Dir = path.join(accountDir, 'v1');
 
-  // Step 1: Extract
-  upsertTask(accountId, 'demo_extracting', { file: demoFilePath });
-  const transcript = readInput(demoFilePath);
+  // Step 1: Extract (supports both text transcripts and audio files)
+  const isAudio = isAudioFile(demoFilePath);
+  upsertTask(accountId, isAudio ? 'demo_transcribing' : 'demo_extracting', { file: demoFilePath });
+  if (isAudio) {
+    logger.info(`Audio file detected, transcribing: ${path.basename(demoFilePath)}`);
+  }
+  const transcript = await readInputAuto(demoFilePath);
   logger.info(`Read transcript: ${path.basename(demoFilePath)} (${transcript.length} chars)`);
+  upsertTask(accountId, 'demo_extracting', { file: demoFilePath });
 
   const memo = await extractFromTranscript(transcript, { model });
   memo.account_id = accountId;
@@ -188,9 +214,14 @@ async function runPipelineB(accountId, onboardingFilePath, v1Memo, model) {
     }
   }
 
-  upsertTask(accountId, 'onboarding_extracting', { file: onboardingFilePath });
-  const transcript = readInput(onboardingFilePath);
+  const isAudio = isAudioFile(onboardingFilePath);
+  upsertTask(accountId, isAudio ? 'onboarding_transcribing' : 'onboarding_extracting', { file: onboardingFilePath });
+  if (isAudio) {
+    logger.info(`Audio file detected, transcribing: ${path.basename(onboardingFilePath)}`);
+  }
+  const transcript = await readInputAuto(onboardingFilePath);
   logger.info(`Read onboarding: ${path.basename(onboardingFilePath)} (${transcript.length} chars)`);
+  upsertTask(accountId, 'onboarding_extracting', { file: onboardingFilePath });
 
   const onboardingData = await extractFromTranscript(transcript, { model });
   onboardingData.account_id = accountId;
