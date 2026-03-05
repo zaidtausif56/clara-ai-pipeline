@@ -1,0 +1,86 @@
+{
+  "account_id": "bens-electrical",
+  "company_name": null,
+  "business_hours": {
+    "days": "Monday,Tuesday,Wednesday,Thursday,Friday",
+    "start": "8:00 AM",
+    "end": "5:00 PM",
+    "timezone": "EST"
+  },
+  "office_address": "123 Main St, Anytown, USA",
+  "services_supported": [
+    "Electrician",
+    "Service calls",
+    "Renovations",
+    "Troubleshooting",
+    "EV chargers",
+    "Hot tub hookups",
+    "Panel changes",
+    "Residential Commercial",
+    "EV Charging",
+    "outlet replacements",
+    "fixture replacements",
+    "aluminum wiring upgrades",
+    "electrical",
+    "electricity",
+    "plumbing",
+    "HVAC"
+  ],
+  "emergency_definition": [
+    "Gas station pumps go down",
+    "Plumbers get stuck",
+    "HVAC goes out",
+    "Gas station pumps go down for property manager X",
+    "HVAC failure",
+    "Electrical emergency",
+    "callers with emergencies",
+    "electricity outage",
+    "leaky pipes",
+    "toilet overflow",
+    "pumps go down for property manager X"
+  ],
+  "emergency_routing_rules": [
+    "Call service owner",
+    "Get manager on the phone",
+    "Check website for solutions",
+    "Property manager X on call",
+    "General contractor on call",
+    "call to our licensed electricians",
+    "forward calls to my cell",
+    "call you directly",
+    "forward calls to a team member",
+    "call the emergency number",
+    "call the manager",
+    "call Greg at 555-1234",
+    "call to my cell",
+    "transfer to my second number"
+  ],
+  "non_emergency_routing_rules": [
+    "Take a message",
+    "Schedule a callback",
+    "Reply to email",
+    "forward to the dispatcher",
+    "forward calls to cell phone"
+  ],
+  "call_transfer_rules": [
+    "Forward calls to my cell",
+    "Transfer to my second number",
+    "forward calls to our accounting department",
+    "forward calls to my second number",
+    "forward calls to a cell phone",
+    "transfer to the personal cell number",
+    "forward calls to Greg's number"
+  ],
+  "integration_constraints": [
+    "Jobber",
+    "Google Workspace"
+  ],
+  "after_hours_flow_summary": "Calls are answered by property manager X or general contractor on call. If unable to reach, message is left and callback is scheduled.",
+  "office_hours_flow_summary": "Calls are answered by Ben during business hours. If after hours, message is left and callback is scheduled.",
+  "questions_or_unknowns": [
+    "Business hours end time not confirmed",
+    "After-hours contact number not provided",
+    "Emergency contact number not provided"
+  ],
+  "notes": "The client is a small electrician business with 30 years of experience. They have 3 company vans and 2 subcontractors. They do a variety of services, including service calls, renovations, and troubleshooting. They also do EV chargers and hot tub hookups. The client is looking for a phone system to manage their calls and is interested in the Clara AI phone answering service. Ben's Electrical Works is a 30-year-old company with a focus on electrical services."
+}

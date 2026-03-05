@@ -1,0 +1,92 @@
+{
+  "account_id": "bens-electrical",
+  "company_name": "Ben's Electric Solutions",
+  "business_hours": {
+    "days": "Monday to Friday",
+    "start": "8:00 AM",
+    "end": "4:30 PM",
+    "timezone": "Pacific Time Zone"
+  },
+  "office_address": "Ben's Electric Solutions, 123 Main St, Anytown, USA",
+  "services_supported": [
+    "Electrician",
+    "Service calls",
+    "Renovations",
+    "Troubleshooting",
+    "EV chargers",
+    "Hot tub hookups",
+    "Panel changes",
+    "Residential Commercial",
+    "EV Charging",
+    "outlet replacements",
+    "fixture replacements",
+    "aluminum wiring upgrades",
+    "electrical",
+    "electricity",
+    "plumbing",
+    "HVAC",
+    "Residential (average $90 an hour)",
+    "Half hour increments ($40/hour)",
+    "Plumbing"
+  ],
+  "emergency_definition": [
+    "Gas station pumps go down",
+    "Plumbers get stuck",
+    "HVAC goes out",
+    "Gas station pumps go down for property manager X",
+    "HVAC failure",
+    "Electrical emergency",
+    "callers with emergencies",
+    "electricity outage",
+    "leaky pipes",
+    "toilet overflow",
+    "pumps go down for property manager X",
+    "Leaky roof for a resident"
+  ],
+  "emergency_routing_rules": [
+    "Call service owner",
+    "Get manager on the phone",
+    "Check website for solutions",
+    "Property manager X on call",
+    "General contractor on call",
+    "call to our licensed electricians",
+    "forward calls to my cell",
+    "call you directly",
+    "forward calls to a team member",
+    "call the emergency number",
+    "call the manager",
+    "call Greg at 555-1234",
+    "call to my cell",
+    "transfer to my second number",
+    "Patch through to my cell phone if it's an emergency",
+    "Contact property manager Y for emergency services"
+  ],
+  "non_emergency_routing_rules": [
+    "Take a message",
+    "Schedule a callback",
+    "Reply to email",
+    "forward to the dispatcher",
+    "forward calls to cell phone",
+    "Schedule a callback for a non-emergency call"
+  ],
+  "call_transfer_rules": [
+    "Forward calls to my cell",
+    "Transfer to my second number",
+    "forward calls to our accounting department",
+    "forward calls to my second number",
+    "forward calls to a cell phone",
+    "transfer to the personal cell number",
+    "forward calls to Greg's number",
+    "Forward calls to my cell phone during business hours",
+    "Transfer to my second number after hours"
+  ],
+  "integration_constraints": [
+    "Jobber",
+    "Google Workspace",
+    "PropTech"
+  ],
+  "after_hours_flow_summary": "Ben will receive notifications and respond to emergencies during after-hours",
+  "office_hours_flow_summary": "Agents will respond to calls during business hours, and Ben will be notified",
+  "questions_or_unknowns": [],
+  "notes": "Client has one personal phone number and another for business, will be used for call forwarding. Service call fee is $115 and hourly charges are $90 for half hour increments. Ben's Electric Solutions is a 24/7 emergency service for gas stations and properties managed by GNM, with regular business hours from Monday to Friday."
+}

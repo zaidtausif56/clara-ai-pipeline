@@ -1,0 +1,451 @@
+{
+  "account_id": "bens-electrical",
+  "from_version": "v1",
+  "to_version": "v2",
+  "timestamp": "2026-03-05T02:16:05.503Z",
+  "total_fields_changed": 15,
+  "changes": {
+    "company_name": {
+      "old": null,
+      "new": "Ben's Electric Solutions"
+    },
+    "office_address": {
+      "old": "123 Main St, Anytown, USA",
+      "new": "Ben's Electric Solutions, 123 Main St, Anytown, USA"
+    },
+    "after_hours_flow_summary": {
+      "old": "Calls are answered by property manager X or general contractor on call. If unable to reach, message is left and callback is scheduled.",
+      "new": "Ben will receive notifications and respond to emergencies during after-hours"
+    },
+    "office_hours_flow_summary": {
+      "old": "Calls are answered by Ben during business hours. If after hours, message is left and callback is scheduled.",
+      "new": "Agents will respond to calls during business hours, and Ben will be notified"
+    },
+    "notes": {
+      "old": "The client is a small electrician business with 30 years of experience. They have 3 company vans and 2 subcontractors. They do a variety of services, including service calls, renovations, and troubleshooting. They also do EV chargers and hot tub hookups. The client is looking for a phone system to manage their calls and is interested in the Clara AI phone answering service. Ben's Electrical Works is a 30-year-old company with a focus on electrical services.",
+      "new": "Client has one personal phone number and another for business, will be used for call forwarding. Service call fee is $115 and hourly charges are $90 for half hour increments. Ben's Electric Solutions is a 24/7 emergency service for gas stations and properties managed by GNM, with regular business hours from Monday to Friday."
+    },
+    "business_hours.days": {
+      "old": "Monday,Tuesday,Wednesday,Thursday,Friday",
+      "new": "Monday to Friday"
+    },
+    "business_hours.end": {
+      "old": "5:00 PM",
+      "new": "4:30 PM"
+    },
+    "business_hours.timezone": {
+      "old": "EST",
+      "new": "Pacific Time Zone"
+    },
+    "services_supported": {
+      "old": [
+        "Electrician",
+        "Service calls",
+        "Renovations",
+        "Troubleshooting",
+        "EV chargers",
+        "Hot tub hookups",
+        "Panel changes",
+        "Residential Commercial",
+        "EV Charging",
+        "outlet replacements",
+        "fixture replacements",
+        "aluminum wiring upgrades",
+        "electrical",
+        "electricity",
+        "plumbing",
+        "HVAC"
+      ],
+      "new": [
+        "Electrician",
+        "Service calls",
+        "Renovations",
+        "Troubleshooting",
+        "EV chargers",
+        "Hot tub hookups",
+        "Panel changes",
+        "Residential Commercial",
+        "EV Charging",
+        "outlet replacements",
+        "fixture replacements",
+        "aluminum wiring upgrades",
+        "electrical",
+        "electricity",
+        "plumbing",
+        "HVAC",
+        "Residential (average $90 an hour)",
+        "Half hour increments ($40/hour)",
+        "Plumbing"
+      ],
+      "added": [
+        "Residential (average $90 an hour)",
+        "Half hour increments ($40/hour)",
+        "Plumbing"
+      ],
+      "removed": []
+    },
+    "emergency_definition": {
+      "old": [
+        "Gas station pumps go down",
+        "Plumbers get stuck",
+        "HVAC goes out",
+        "Gas station pumps go down for property manager X",
+        "HVAC failure",
+        "Electrical emergency",
+        "callers with emergencies",
+        "electricity outage",
+        "leaky pipes",
+        "toilet overflow",
+        "pumps go down for property manager X"
+      ],
+      "new": [
+        "Gas station pumps go down",
+        "Plumbers get stuck",
+        "HVAC goes out",
+        "Gas station pumps go down for property manager X",
+        "HVAC failure",
+        "Electrical emergency",
+        "callers with emergencies",
+        "electricity outage",
+        "leaky pipes",
+        "toilet overflow",
+        "pumps go down for property manager X",
+        "Leaky roof for a resident"
+      ],
+      "added": [
+        "Leaky roof for a resident"
+      ],
+      "removed": []
+    },
+    "emergency_routing_rules": {
+      "old": [
+        "Call service owner",
+        "Get manager on the phone",
+        "Check website for solutions",
+        "Property manager X on call",
+        "General contractor on call",
+        "call to our licensed electricians",
+        "forward calls to my cell",
+        "call you directly",
+        "forward calls to a team member",
+        "call the emergency number",
+        "call the manager",
+        "call Greg at 555-1234",
+        "call to my cell",
+        "transfer to my second number"
+      ],
+      "new": [
+        "Call service owner",
+        "Get manager on the phone",
+        "Check website for solutions",
+        "Property manager X on call",
+        "General contractor on call",
+        "call to our licensed electricians",
+        "forward calls to my cell",
+        "call you directly",
+        "forward calls to a team member",
+        "call the emergency number",
+        "call the manager",
+        "call Greg at 555-1234",
+        "call to my cell",
+        "transfer to my second number",
+        "Patch through to my cell phone if it's an emergency",
+        "Contact property manager Y for emergency services"
+      ],
+      "added": [
+        "Patch through to my cell phone if it's an emergency",
+        "Contact property manager Y for emergency services"
+      ],
+      "removed": []
+    },
+    "non_emergency_routing_rules": {
+      "old": [
+        "Take a message",
+        "Schedule a callback",
+        "Reply to email",
+        "forward to the dispatcher",
+        "forward calls to cell phone"
+      ],
+      "new": [
+        "Take a message",
+        "Schedule a callback",
+        "Reply to email",
+        "forward to the dispatcher",
+        "forward calls to cell phone",
+        "Schedule a callback for a non-emergency call"
+      ],
+      "added": [
+        "Schedule a callback for a non-emergency call"
+      ],
+      "removed": []
+    },
+    "call_transfer_rules": {
+      "old": [
+        "Forward calls to my cell",
+        "Transfer to my second number",
+        "forward calls to our accounting department",
+        "forward calls to my second number",
+        "forward calls to a cell phone",
+        "transfer to the personal cell number",
+        "forward calls to Greg's number"
+      ],
+      "new": [
+        "Forward calls to my cell",
+        "Transfer to my second number",
+        "forward calls to our accounting department",
+        "forward calls to my second number",
+        "forward calls to a cell phone",
+        "transfer to the personal cell number",
+        "forward calls to Greg's number",
+        "Forward calls to my cell phone during business hours",
+        "Transfer to my second number after hours"
+      ],
+      "added": [
+        "Forward calls to my cell phone during business hours",
+        "Transfer to my second number after hours"
+      ],
+      "removed": []
+    },
+    "integration_constraints": {
+      "old": [
+        "Jobber",
+        "Google Workspace"
+      ],
+      "new": [
+        "Jobber",
+        "Google Workspace",
+        "PropTech"
+      ],
+      "added": [
+        "PropTech"
+      ],
+      "removed": []
+    },
+    "questions_or_unknowns": {
+      "old": [
+        "Business hours end time not confirmed",
+        "After-hours contact number not provided",
+        "Emergency contact number not provided"
+      ],
+      "new": [],
+      "added": [],
+      "removed": [
+        "Business hours end time not confirmed",
+        "After-hours contact number not provided",
+        "Emergency contact number not provided"
+      ]
+    }
+  },
+  "conflicts": [
+    {
+      "field": "office_address",
+      "old_value": "123 Main St, Anytown, USA",
+      "new_value": "Ben's Electric Solutions, 123 Main St, Anytown, USA",
+      "resolution": "Updated to onboarding value (operational precision takes precedence)"
+    },
+    {
+      "field": "after_hours_flow_summary",
+      "old_value": "Calls are answered by property manager X or general contractor on call. If unable to reach, message is left and callback is scheduled.",
+      "new_value": "Ben will receive notifications and respond to emergencies during after-hours",
+      "resolution": "Updated to onboarding value (operational precision takes precedence)"
+    },
+    {
+      "field": "office_hours_flow_summary",
+      "old_value": "Calls are answered by Ben during business hours. If after hours, message is left and callback is scheduled.",
+      "new_value": "Agents will respond to calls during business hours, and Ben will be notified",
+      "resolution": "Updated to onboarding value (operational precision takes precedence)"
+    },
+    {
+      "field": "notes",
+      "old_value": "The client is a small electrician business with 30 years of experience. They have 3 company vans and 2 subcontractors. They do a variety of services, including service calls, renovations, and troubleshooting. They also do EV chargers and hot tub hookups. The client is looking for a phone system to manage their calls and is interested in the Clara AI phone answering service. Ben's Electrical Works is a 30-year-old company with a focus on electrical services.",
+      "new_value": "Client has one personal phone number and another for business, will be used for call forwarding. Service call fee is $115 and hourly charges are $90 for half hour increments. Ben's Electric Solutions is a 24/7 emergency service for gas stations and properties managed by GNM, with regular business hours from Monday to Friday.",
+      "resolution": "Updated to onboarding value (operational precision takes precedence)"
+    },
+    {
+      "field": "business_hours.days",
+      "old_value": "Monday,Tuesday,Wednesday,Thursday,Friday",
+      "new_value": "Monday to Friday",
+      "resolution": "Updated to onboarding value"
+    },
+    {
+      "field": "business_hours.end",
+      "old_value": "5:00 PM",
+      "new_value": "4:30 PM",
+      "resolution": "Updated to onboarding value"
+    },
+    {
+      "field": "business_hours.timezone",
+      "old_value": "EST",
+      "new_value": "Pacific Time Zone",
+      "resolution": "Updated to onboarding value"
+    },
+    {
+      "field": "services_supported",
+      "old_value": [
+        "Electrician",
+        "Service calls",
+        "Renovations",
+        "Troubleshooting",
+        "EV chargers",
+        "Hot tub hookups",
+        "Panel changes",
+        "Residential Commercial",
+        "EV Charging",
+        "outlet replacements",
+        "fixture replacements",
+        "aluminum wiring upgrades",
+        "electrical",
+        "electricity",
+        "plumbing",
+        "HVAC"
+      ],
+      "new_value": [
+        "Electrician",
+        "Service calls",
+        "Renovations",
+        "Troubleshooting",
+        "EV chargers",
+        "Hot tub hookups",
+        "Panel changes",
+        "Residential Commercial",
+        "EV Charging",
+        "outlet replacements",
+        "fixture replacements",
+        "aluminum wiring upgrades",
+        "electrical",
+        "electricity",
+        "plumbing",
+        "HVAC",
+        "Residential (average $90 an hour)",
+        "Half hour increments ($40/hour)",
+        "Plumbing"
+      ],
+      "resolution": "Merged (union of v1 and onboarding values)"
+    },
+    {
+      "field": "emergency_definition",
+      "old_value": [
+        "Gas station pumps go down",
+        "Plumbers get stuck",
+        "HVAC goes out",
+        "Gas station pumps go down for property manager X",
+        "HVAC failure",
+        "Electrical emergency",
+        "callers with emergencies",
+        "electricity outage",
+        "leaky pipes",
+        "toilet overflow",
+        "pumps go down for property manager X"
+      ],
+      "new_value": [
+        "Gas station pumps go down",
+        "Plumbers get stuck",
+        "HVAC goes out",
+        "Gas station pumps go down for property manager X",
+        "HVAC failure",
+        "Electrical emergency",
+        "callers with emergencies",
+        "electricity outage",
+        "leaky pipes",
+        "toilet overflow",
+        "pumps go down for property manager X",
+        "Leaky roof for a resident"
+      ],
+      "resolution": "Merged (union of v1 and onboarding values)"
+    },
+    {
+      "field": "emergency_routing_rules",
+      "old_value": [
+        "Call service owner",
+        "Get manager on the phone",
+        "Check website for solutions",
+        "Property manager X on call",
+        "General contractor on call",
+        "call to our licensed electricians",
+        "forward calls to my cell",
+        "call you directly",
+        "forward calls to a team member",
+        "call the emergency number",
+        "call the manager",
+        "call Greg at 555-1234",
+        "call to my cell",
+        "transfer to my second number"
+      ],
+      "new_value": [
+        "Call service owner",
+        "Get manager on the phone",
+        "Check website for solutions",
+        "Property manager X on call",
+        "General contractor on call",
+        "call to our licensed electricians",
+        "forward calls to my cell",
+        "call you directly",
+        "forward calls to a team member",
+        "call the emergency number",
+        "call the manager",
+        "call Greg at 555-1234",
+        "call to my cell",
+        "transfer to my second number",
+        "Patch through to my cell phone if it's an emergency",
+        "Contact property manager Y for emergency services"
+      ],
+      "resolution": "Merged (union of v1 and onboarding values)"
+    },
+    {
+      "field": "non_emergency_routing_rules",
+      "old_value": [
+        "Take a message",
+        "Schedule a callback",
+        "Reply to email",
+        "forward to the dispatcher",
+        "forward calls to cell phone"
+      ],
+      "new_value": [
+        "Take a message",
+        "Schedule a callback",
+        "Reply to email",
+        "forward to the dispatcher",
+        "forward calls to cell phone",
+        "Schedule a callback for a non-emergency call"
+      ],
+      "resolution": "Merged (union of v1 and onboarding values)"
+    },
+    {
+      "field": "call_transfer_rules",
+      "old_value": [
+        "Forward calls to my cell",
+        "Transfer to my second number",
+        "forward calls to our accounting department",
+        "forward calls to my second number",
+        "forward calls to a cell phone",
+        "transfer to the personal cell number",
+        "forward calls to Greg's number"
+      ],
+      "new_value": [
+        "Forward calls to my cell",
+        "Transfer to my second number",
+        "forward calls to our accounting department",
+        "forward calls to my second number",
+        "forward calls to a cell phone",
+        "transfer to the personal cell number",
+        "forward calls to Greg's number",
+        "Forward calls to my cell phone during business hours",
+        "Transfer to my second number after hours"
+      ],
+      "resolution": "Merged (union of v1 and onboarding values)"
+    },
+    {
+      "field": "integration_constraints",
+      "old_value": [
+        "Jobber",
+        "Google Workspace"
+      ],
+      "new_value": [
+        "Jobber",
+        "Google Workspace",
+        "PropTech"
+      ],
+      "resolution": "Merged (union of v1 and onboarding values)"
+    }
+  ]
+}

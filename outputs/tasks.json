@@ -1,0 +1,332 @@
+[
+  {
+    "task_id": "task-bens-electrical-1772667603885",
+    "account_id": "bens-electrical",
+    "stage": "complete",
+    "status": "archived",
+    "created_at": "2026-03-04T23:40:03.885Z",
+    "updated_at": "2026-03-05T00:28:51.648Z",
+    "history": [
+      {
+        "stage": "demo_extracting",
+        "timestamp": "2026-03-04T23:40:03.885Z",
+        "details": {
+          "file": "C:\\Users\\NITISH SHARMA\\Downloads\\Zaid\\clara-ai-pipeline\\inputs\\demo\\demo-bens-electrical.txt"
+        }
+      },
+      {
+        "stage": "demo_extracting",
+        "timestamp": "2026-03-04T23:40:03.888Z",
+        "details": {
+          "file": "C:\\Users\\NITISH SHARMA\\Downloads\\Zaid\\clara-ai-pipeline\\inputs\\demo\\demo-bens-electrical.txt"
+        }
+      },
+      {
+        "stage": "demo_extracted",
+        "timestamp": "2026-03-04T23:56:10.055Z",
+        "details": {
+          "memo_fields": 14
+        }
+      },
+      {
+        "stage": "agent_v1_generated",
+        "timestamp": "2026-03-04T23:56:10.058Z",
+        "details": {
+          "agent_name": "Clara - Unknown Company"
+        }
+      },
+      {
+        "stage": "onboarding_extracting",
+        "timestamp": "2026-03-04T23:56:10.060Z",
+        "details": {
+          "file": "C:\\Users\\NITISH SHARMA\\Downloads\\Zaid\\clara-ai-pipeline\\inputs\\onboarding\\onboarding-bens-electrical.txt"
+        }
+      },
+      {
+        "stage": "onboarding_extracting",
+        "timestamp": "2026-03-04T23:56:10.062Z",
+        "details": {
+          "file": "C:\\Users\\NITISH SHARMA\\Downloads\\Zaid\\clara-ai-pipeline\\inputs\\onboarding\\onboarding-bens-electrical.txt"
+        }
+      },
+      {
+        "stage": "onboarding_extracted",
+        "timestamp": "2026-03-05T00:00:04.772Z",
+        "details": {}
+      },
+      {
+        "stage": "merged",
+        "timestamp": "2026-03-05T00:00:04.781Z",
+        "details": {
+          "conflicts": 12
+        }
+      },
+      {
+        "stage": "agent_v2_generated",
+        "timestamp": "2026-03-05T00:00:04.790Z",
+        "details": {
+          "agent_name": "Clara - Ben's Electric Solutions"
+        }
+      },
+      {
+        "stage": "complete",
+        "timestamp": "2026-03-05T00:00:04.796Z",
+        "details": {
+          "completed": true
+        }
+      }
+    ]
+  },
+  {
+    "task_id": "task-bens-electrical-1772670531648",
+    "account_id": "bens-electrical",
+    "stage": "demo_extracting",
+    "status": "archived",
+    "created_at": "2026-03-05T00:28:51.648Z",
+    "updated_at": "2026-03-05T00:57:18.451Z",
+    "history": [
+      {
+        "stage": "demo_extracting",
+        "timestamp": "2026-03-05T00:28:51.648Z",
+        "details": {
+          "file": "C:\\Users\\NITISH SHARMA\\Downloads\\Zaid\\clara-ai-pipeline\\inputs\\demo\\demo-bens-electrical.txt"
+        }
+      },
+      {
+        "stage": "demo_extracting",
+        "timestamp": "2026-03-05T00:28:51.661Z",
+        "details": {
+          "file": "C:\\Users\\NITISH SHARMA\\Downloads\\Zaid\\clara-ai-pipeline\\inputs\\demo\\demo-bens-electrical.txt"
+        }
+      }
+    ]
+  },
+  {
+    "task_id": "task-bens-electrical-1772672238452",
+    "account_id": "bens-electrical",
+    "stage": "demo_extracting",
+    "status": "archived",
+    "created_at": "2026-03-05T00:57:18.452Z",
+    "updated_at": "2026-03-05T01:16:10.214Z",
+    "history": [
+      {
+        "stage": "demo_extracting",
+        "timestamp": "2026-03-05T00:57:18.452Z",
+        "details": {
+          "file": "C:\\Users\\NITISH SHARMA\\Downloads\\Zaid\\clara-ai-pipeline\\inputs\\demo\\demo-bens-electrical.txt"
+        }
+      },
+      {
+        "stage": "demo_extracting",
+        "timestamp": "2026-03-05T00:57:18.462Z",
+        "details": {
+          "file": "C:\\Users\\NITISH SHARMA\\Downloads\\Zaid\\clara-ai-pipeline\\inputs\\demo\\demo-bens-electrical.txt"
+        }
+      }
+    ]
+  },
+  {
+    "task_id": "task-bens-electrical-1772673370214",
+    "account_id": "bens-electrical",
+    "stage": "complete",
+    "status": "archived",
+    "created_at": "2026-03-05T01:16:10.214Z",
+    "updated_at": "2026-03-05T01:45:45.333Z",
+    "history": [
+      {
+        "stage": "demo_extracting",
+        "timestamp": "2026-03-05T01:16:10.214Z",
+        "details": {
+          "file": "C:\\Users\\NITISH SHARMA\\Downloads\\Zaid\\clara-ai-pipeline\\inputs\\demo\\demo-bens-electrical.txt"
+        }
+      },
+      {
+        "stage": "demo_extracting",
+        "timestamp": "2026-03-05T01:16:10.234Z",
+        "details": {
+          "file": "C:\\Users\\NITISH SHARMA\\Downloads\\Zaid\\clara-ai-pipeline\\inputs\\demo\\demo-bens-electrical.txt"
+        }
+      },
+      {
+        "stage": "demo_extracted",
+        "timestamp": "2026-03-05T01:31:34.750Z",
+        "details": {
+          "memo_fields": 14
+        }
+      },
+      {
+        "stage": "agent_v1_generated",
+        "timestamp": "2026-03-05T01:31:34.753Z",
+        "details": {
+          "agent_name": "Clara - Unknown Company"
+        }
+      },
+      {
+        "stage": "onboarding_extracting",
+        "timestamp": "2026-03-05T01:31:34.755Z",
+        "details": {
+          "file": "C:\\Users\\NITISH SHARMA\\Downloads\\Zaid\\clara-ai-pipeline\\inputs\\onboarding\\onboarding-bens-electrical.txt"
+        }
+      },
+      {
+        "stage": "onboarding_extracting",
+        "timestamp": "2026-03-05T01:31:34.757Z",
+        "details": {
+          "file": "C:\\Users\\NITISH SHARMA\\Downloads\\Zaid\\clara-ai-pipeline\\inputs\\onboarding\\onboarding-bens-electrical.txt"
+        }
+      },
+      {
+        "stage": "onboarding_extracted",
+        "timestamp": "2026-03-05T01:34:58.959Z",
+        "details": {}
+      },
+      {
+        "stage": "merged",
+        "timestamp": "2026-03-05T01:34:59.124Z",
+        "details": {
+          "conflicts": 11
+        }
+      },
+      {
+        "stage": "agent_v2_generated",
+        "timestamp": "2026-03-05T01:34:59.133Z",
+        "details": {
+          "agent_name": "Clara - Ben's Electric Solutions Team"
+        }
+      },
+      {
+        "stage": "complete",
+        "timestamp": "2026-03-05T01:34:59.142Z",
+        "details": {
+          "completed": true
+        }
+      }
+    ]
+  },
+  {
+    "task_id": "task-bens-electrical-1772675145333",
+    "account_id": "bens-electrical",
+    "stage": "demo_extracting",
+    "status": "archived",
+    "created_at": "2026-03-05T01:45:45.333Z",
+    "updated_at": "2026-03-05T01:58:56.722Z",
+    "history": [
+      {
+        "stage": "demo_extracting",
+        "timestamp": "2026-03-05T01:45:45.333Z",
+        "details": {
+          "file": "C:\\Users\\NITISH SHARMA\\Downloads\\Zaid\\clara-ai-pipeline\\inputs\\demo\\demo-bens-electrical.txt"
+        }
+      },
+      {
+        "stage": "demo_extracting",
+        "timestamp": "2026-03-05T01:45:45.346Z",
+        "details": {
+          "file": "C:\\Users\\NITISH SHARMA\\Downloads\\Zaid\\clara-ai-pipeline\\inputs\\demo\\demo-bens-electrical.txt"
+        }
+      }
+    ]
+  },
+  {
+    "task_id": "task-bens-electrical-1772675936722",
+    "account_id": "bens-electrical",
+    "stage": "complete",
+    "status": "archived",
+    "created_at": "2026-03-05T01:58:56.722Z",
+    "updated_at": "2026-03-05T02:28:22.546Z",
+    "history": [
+      {
+        "stage": "demo_extracting",
+        "timestamp": "2026-03-05T01:58:56.722Z",
+        "details": {
+          "file": "C:\\Users\\NITISH SHARMA\\Downloads\\Zaid\\clara-ai-pipeline\\inputs\\demo\\demo-bens-electrical.txt"
+        }
+      },
+      {
+        "stage": "demo_extracting",
+        "timestamp": "2026-03-05T01:58:56.726Z",
+        "details": {
+          "file": "C:\\Users\\NITISH SHARMA\\Downloads\\Zaid\\clara-ai-pipeline\\inputs\\demo\\demo-bens-electrical.txt"
+        }
+      },
+      {
+        "stage": "demo_extracted",
+        "timestamp": "2026-03-05T02:12:54.275Z",
+        "details": {
+          "memo_fields": 14
+        }
+      },
+      {
+        "stage": "agent_v1_generated",
+        "timestamp": "2026-03-05T02:12:54.279Z",
+        "details": {
+          "agent_name": "Clara - Unknown Company"
+        }
+      },
+      {
+        "stage": "onboarding_extracting",
+        "timestamp": "2026-03-05T02:12:54.281Z",
+        "details": {
+          "file": "C:\\Users\\NITISH SHARMA\\Downloads\\Zaid\\clara-ai-pipeline\\inputs\\onboarding\\onboarding-bens-electrical.txt"
+        }
+      },
+      {
+        "stage": "onboarding_extracting",
+        "timestamp": "2026-03-05T02:12:54.285Z",
+        "details": {
+          "file": "C:\\Users\\NITISH SHARMA\\Downloads\\Zaid\\clara-ai-pipeline\\inputs\\onboarding\\onboarding-bens-electrical.txt"
+        }
+      },
+      {
+        "stage": "onboarding_extracted",
+        "timestamp": "2026-03-05T02:16:05.496Z",
+        "details": {}
+      },
+      {
+        "stage": "merged",
+        "timestamp": "2026-03-05T02:16:05.500Z",
+        "details": {
+          "conflicts": 13
+        }
+      },
+      {
+        "stage": "agent_v2_generated",
+        "timestamp": "2026-03-05T02:16:05.502Z",
+        "details": {
+          "agent_name": "Clara - Ben's Electric Solutions"
+        }
+      },
+      {
+        "stage": "complete",
+        "timestamp": "2026-03-05T02:16:05.505Z",
+        "details": {
+          "completed": true
+        }
+      }
+    ]
+  },
+  {
+    "task_id": "task-bens-electrical-1772677702546",
+    "account_id": "bens-electrical",
+    "stage": "demo_extracting",
+    "status": "in-progress",
+    "created_at": "2026-03-05T02:28:22.546Z",
+    "updated_at": "2026-03-05T02:28:22.553Z",
+    "history": [
+      {
+        "stage": "demo_extracting",
+        "timestamp": "2026-03-05T02:28:22.546Z",
+        "details": {
+          "file": "C:\\Users\\NITISH SHARMA\\Downloads\\Zaid\\clara-ai-pipeline\\inputs\\demo\\demo-bens-electrical.txt"
+        }
+      },
+      {
+        "stage": "demo_extracting",
+        "timestamp": "2026-03-05T02:28:22.553Z",
+        "details": {
+          "file": "C:\\Users\\NITISH SHARMA\\Downloads\\Zaid\\clara-ai-pipeline\\inputs\\demo\\demo-bens-electrical.txt"
+        }
+      }
+    ]
+  }
+]
