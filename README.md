@@ -1,9 +1,12 @@
 # Clara AI Pipeline
 
 > Zero-cost automation pipeline that converts messy sales call recordings into production-ready AI voice agent configurations for [Retell](https://www.retell.ai/).
-
+> 
 **Pipeline A:** Demo call recording/transcript → Structured account memo (v1) → Preliminary Retell agent spec  
 **Pipeline B:** Onboarding call recording/transcript → Updated memo (v2) → Revised agent spec + changelog
+
+---
+### [Loom Demo Video Link](https://www.loom.com/share/81f7791b43b544d2941125032c1692eb)
 
 ---
 
