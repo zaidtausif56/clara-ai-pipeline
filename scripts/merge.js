@@ -4,10 +4,9 @@
 const logger = require('./logger');
 
 function mergeMemos(v1Memo, onboardingData) {
-  const merged = JSON.parse(JSON.stringify(v1Memo)); // deep clone
+  const merged = JSON.parse(JSON.stringify(v1Memo));
   const conflicts = [];
 
-  // Preserve account_id from v1
   merged.account_id = v1Memo.account_id;
 
   const stringFields = [
@@ -20,7 +19,13 @@ function mergeMemos(v1Memo, onboardingData) {
 
   for (const field of stringFields) {
     const oldVal = v1Memo[field];
-    const newVal = onboardingData[field];
+    let newVal = onboardingData[field];
+
+    // Guard: if the onboarding value is an object instead of string, skip it
+    if (newVal != null && typeof newVal === 'object') {
+      logger.warn(`Skipping merge for ${field}: value is an object, not a string`);
+      continue;
+    }
 
     if (newVal != null && newVal !== '' && newVal !== oldVal) {
       if (oldVal != null && oldVal !== '') {

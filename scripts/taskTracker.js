@@ -47,13 +47,31 @@ function saveTasks(tasks) {
 
 function findTask(accountId) {
   const tasks = loadTasks();
-  return tasks.find((t) => t.account_id === accountId) || null;
+  // Return the latest non-archived task
+  return tasks.filter((t) => t.account_id === accountId && t.status !== 'archived').pop() || null;
 }
 
-// Create or update a task for an account
+// Start a new run for an account — creates a fresh task, archives the old one
+function startNewRun(accountId, stage, details = {}) {
+  const tasks = loadTasks();
+  // Mark any existing task for this account as archived
+  for (const t of tasks) {
+    if (t.account_id === accountId && t.status !== 'archived') {
+      t.status = 'archived';
+      t.updated_at = new Date().toISOString();
+    }
+  }
+  const task = createTask(accountId, stage, details);
+  tasks.push(task);
+  saveTasks(tasks);
+  logger.info(`New run started: ${accountId} -> ${stage} (task_id: ${task.task_id})`);
+  return task;
+}
+
+// Update the latest (non-archived) task for an account
 function upsertTask(accountId, stage, details = {}) {
   const tasks = loadTasks();
-  let task = tasks.find((t) => t.account_id === accountId);
+  let task = tasks.filter((t) => t.account_id === accountId && t.status !== 'archived').pop();
 
   if (task) {
     task.stage = stage;
@@ -84,6 +102,7 @@ function getAllTasks() {
 }
 
 module.exports = {
+  startNewRun,
   upsertTask,
   findTask,
   completeTask,

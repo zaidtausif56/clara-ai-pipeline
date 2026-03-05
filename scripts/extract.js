@@ -5,12 +5,13 @@ const http = require('http');
 const logger = require('./logger');
 
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
-const PREFERRED_MODELS = ['llama3.2', 'mistral', 'llama3', 'llama2', 'gemma'];
+const PREFERRED_MODELS = ['llama3.2', 'llama3.1:8b', 'llama3.1', 'mistral', 'llama3', 'llama2', 'gemma'];
 const MAX_RETRIES = 3;
+const NUM_CTX = parseInt(process.env.NUM_CTX, 10) || 8192;
 
-// Chunking config — conservative limits to stay well within Ollama context windows
-// Most local models support 4096-8192 tokens; ~4 chars/token → ~16K-32K chars.
-// We reserve ~2K chars for the prompt template + schema, leaving ~10K for transcript.
+// Chunking config — with num_ctx=8192, the model can handle ~8K tokens per request.
+// Our prompt+schema uses ~1500 tokens (~6K chars), leaving ~6500 tokens (~26K chars) for transcript.
+// We use 10K char chunks for llama3.2 (3B) to stay safely within limits.
 const MAX_TRANSCRIPT_CHARS = parseInt(process.env.MAX_TRANSCRIPT_CHARS, 10) || 10000;
 const CHUNK_OVERLAP_CHARS = parseInt(process.env.CHUNK_OVERLAP_CHARS, 10) || 500;
 
@@ -44,17 +45,54 @@ function buildExtractionPrompt(transcriptText, chunkInfo) {
     ? `\nNote: This is chunk ${chunkInfo.index} of ${chunkInfo.total} from a longer transcript. Extract whatever information is present in THIS chunk. Fields not mentioned in this chunk should use null or [].`
     : '';
 
-  return `You are a data extraction assistant for a call answering service company called Clara Answers.
-Extract ONLY explicitly stated information from the following transcript.
-DO NOT invent, assume, or hallucinate any information.
-If a field is not mentioned, use null for single values or [] for arrays.
-For "notes", write a 1-2 sentence summary of the call. If nothing notable, use an empty string.
-For "account_id", derive it from the company_name by lowercasing and replacing spaces/special characters with hyphens.
+  return `You are a precise data extraction assistant. Extract structured operational information about a CLIENT'S TRADE BUSINESS from a sales/onboarding call transcript.
+
+WHO IS WHO:
+- "Clara" / "Clara AI" / "Clara Answers" = the SERVICE PROVIDER selling AI phone answering. They are NOT the client.
+- The CLIENT is the trade business owner being sold to or onboarded (e.g., an electrician, plumber, HVAC company). Extract only THEIR company info.
+- If you cannot determine the client's company name from the transcript, use null. NEVER use "Clara" or any variation.
+
+DEMO / SIMULATION WARNING:
+- These transcripts often include a LIVE DEMO where Clara shows a simulated phone call to the client. During the demo, a fake caller gives fake details (name, address, job description). DO NOT extract demo/simulation data as real business information.
+- Any address given by a simulated caller (e.g., "my address is 123 Main St") is a JOB SITE in the demo, NOT the client's office address.
+- Only extract addresses that the client explicitly identifies as their business/office address, NOT addresses from demo conversations.
+
+STRICT EXTRACTION RULES:
+1. Extract ONLY facts the CLIENT explicitly states about THEIR OWN business. If something is not clearly said by the client, use null or []. NEVER guess, infer, or assume.
+2. company_name: The client's business name. Look for when they say "my company is..." or when the Clara rep addresses them by company name. NEVER use "Clara".
+3. office_address: The client's BUSINESS office address, NOT a demo caller's job site address, NOT a website, NOT an email. If not explicitly stated by the client as their office, use null.
+4. business_hours: Only fill in if the CLIENT explicitly states their hours. Do NOT assume 9-5 or Monday-Friday. Do NOT assume a timezone — only include it if stated.
+5. services_supported: ONLY services the client's company actually performs. The client is typically ONE trade (e.g., electrical). Do NOT add other trades (plumbing, HVAC) unless the client explicitly says they do those. Do NOT duplicate (e.g., list "EV chargers" once, not as both "EV chargers" and "electric vehicle charger installation"). Keep each entry short (2-5 words).
+6. emergency_definition: SPECIFIC situations the client describes as emergencies. NOT generic phrases like "electrical emergencies" or "outages". Only include what the client actually describes (e.g., "gas station pumps go down for property manager X").
+7. emergency_routing_rules: The ACTUAL protocol the client describes — who to call, in what order, under what conditions. NOT generic phrases like "call to service owner" or "first responder". Must reference real people/roles mentioned by the client.
+8. non_emergency_routing_rules: What actually happens — take a message, schedule a callback, etc. Keep entries specific and actionable.
+9. call_transfer_rules: ONLY transfer rules the client explicitly states (e.g., "forward calls to my cell", "transfer to my second number"). Do NOT invent rules. Do NOT reference "Clara's team" or "Claire's team" — those are the service provider, not the client.
+10. integration_constraints: ONLY tools/CRMs the CLIENT confirms they currently use (e.g., "Jobber"). Not tools mentioned by Clara as examples or suggestions.
+11. after_hours_flow_summary: A concrete 1-2 sentence summary of what happens when someone calls after hours, based on what the client actually said. If not discussed, use null.
+12. office_hours_flow_summary: A concrete 1-2 sentence summary of how calls during business hours should be handled. If not discussed, use null.
+13. questions_or_unknowns: SPECIFIC operational gaps still needed for agent setup (e.g., "Business hours end time not confirmed", "After-hours contact number not provided"). Not generic curiosities.
+14. notes: EXACTLY 2-3 sentences summarizing the key business facts and decisions. No filler.
+15. account_id: Derive from company_name — lowercase, spaces/special chars become hyphens.
 ${chunkHeader}
 
-Return ONLY valid JSON matching this exact schema (no markdown, no explanation, no code fences):
+Return ONLY valid JSON. No markdown, no explanation, no comments.
 
-${SCHEMA_STRING}
+{
+  "account_id": null,
+  "company_name": null,
+  "business_hours": { "days": null, "start": null, "end": null, "timezone": null },
+  "office_address": null,
+  "services_supported": [],
+  "emergency_definition": [],
+  "emergency_routing_rules": [],
+  "non_emergency_routing_rules": [],
+  "call_transfer_rules": [],
+  "integration_constraints": [],
+  "after_hours_flow_summary": null,
+  "office_hours_flow_summary": null,
+  "questions_or_unknowns": [],
+  "notes": ""
+}
 
 TRANSCRIPT:
 ${transcriptText}`;
@@ -80,12 +118,10 @@ function chunkTranscript(text, maxChars = MAX_TRANSCRIPT_CHARS, overlap = CHUNK_
       if (paraBreak !== -1) {
         end = searchStart + paraBreak + 2; // include the double newline
       } else {
-        // Fall back to single newline
         const lineBreak = segment.lastIndexOf('\n');
         if (lineBreak !== -1) {
           end = searchStart + lineBreak + 1;
         }
-        // else: hard cut at maxChars
       }
     }
 
@@ -125,24 +161,28 @@ function mergeChunkMemos(memos) {
 
   const noteFragments = [];
 
-  for (const memo of memos) {
-    // Scalars: take first non-null value found
-    if (!merged.company_name && memo.company_name) merged.company_name = memo.company_name;
-    if (!merged.account_id && memo.account_id && memo.account_id !== 'unknown-company') merged.account_id = memo.account_id;
-    if (!merged.office_address && memo.office_address) merged.office_address = memo.office_address;
-    if (!merged.after_hours_flow_summary && memo.after_hours_flow_summary) merged.after_hours_flow_summary = memo.after_hours_flow_summary;
-    if (!merged.office_hours_flow_summary && memo.office_hours_flow_summary) merged.office_hours_flow_summary = memo.office_hours_flow_summary;
+  const CLARA_NAMES_SET = new Set(['clara', 'clara answers', 'clara ai', 'clara answer']);
 
-    // Business hours: fill in missing sub-fields
+  for (const memo of memos) {
+    // Scalars: take first non-null, non-junk value found
+    if (!merged.company_name && memo.company_name && !CLARA_NAMES_SET.has(memo.company_name.trim().toLowerCase())) {
+      merged.company_name = memo.company_name;
+    }
+    if (!merged.account_id && memo.account_id && memo.account_id !== 'unknown-company') merged.account_id = memo.account_id;
+    if (!merged.office_address && memo.office_address && !isJunkValue(memo.office_address)) merged.office_address = memo.office_address;
+    if (!merged.after_hours_flow_summary && memo.after_hours_flow_summary && !isJunkValue(memo.after_hours_flow_summary)) merged.after_hours_flow_summary = memo.after_hours_flow_summary;
+    if (!merged.office_hours_flow_summary && memo.office_hours_flow_summary && !isJunkValue(memo.office_hours_flow_summary)) merged.office_hours_flow_summary = memo.office_hours_flow_summary;
+
+    // Business hours: fill in missing sub-fields (skip junk)
     if (memo.business_hours && typeof memo.business_hours === 'object') {
       for (const key of ['days', 'start', 'end', 'timezone']) {
-        if (!merged.business_hours[key] && memo.business_hours[key]) {
+        if (!merged.business_hours[key] && memo.business_hours[key] && !isJunkValue(String(memo.business_hours[key]))) {
           merged.business_hours[key] = memo.business_hours[key];
         }
       }
     }
 
-    // Arrays: union (deduplicate)
+    // Arrays: union (deduplicate, case-insensitive)
     const arrayFields = [
       'services_supported', 'emergency_definition', 'emergency_routing_rules',
       'non_emergency_routing_rules', 'call_transfer_rules', 'integration_constraints',
@@ -151,8 +191,13 @@ function mergeChunkMemos(memos) {
     for (const field of arrayFields) {
       if (Array.isArray(memo[field])) {
         for (const item of memo[field]) {
-          if (item && !merged[field].includes(item)) {
-            merged[field].push(item);
+          if (item && !isJunkValue(item) && !isClaraReference(item)) {
+            const isDuplicate = merged[field].some(
+              (existing) => existing.toLowerCase() === item.toLowerCase()
+            );
+            if (!isDuplicate) {
+              merged[field].push(item);
+            }
           }
         }
       }
@@ -168,7 +213,9 @@ function mergeChunkMemos(memos) {
   const uniqueNotes = [...new Set(noteFragments)];
   merged.notes = uniqueNotes.join(' ');
 
-  // Ensure account_id
+  // Deduplicate services after merging all chunks
+  merged.services_supported = deduplicateServices(merged.services_supported);
+
   if (!merged.account_id) {
     merged.account_id = slugify(merged.company_name);
   }
@@ -181,7 +228,7 @@ function mergeChunkMemos(memos) {
 function ollamaGenerate(model, prompt) {
   return new Promise((resolve, reject) => {
     const url = new URL('/api/generate', OLLAMA_URL);
-    const body = JSON.stringify({ model, prompt, stream: false });
+    const body = JSON.stringify({ model, prompt, stream: false, options: { num_ctx: NUM_CTX } });
 
     const opts = {
       hostname: url.hostname,
@@ -261,7 +308,6 @@ async function pickModel() {
     }
   }
 
-  // Fallback to first available
   logger.warn(`No preferred model found, using: ${available[0]}`);
   return available[0];
 }
@@ -275,11 +321,9 @@ function repairJSON(raw) {
   // Remove markdown code fences
   text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
 
-  // Try direct parse
   try {
     return JSON.parse(text);
   } catch {
-    // continue
   }
 
   // Try to find JSON object boundaries
@@ -289,7 +333,6 @@ function repairJSON(raw) {
     try {
       return JSON.parse(text.slice(firstBrace, lastBrace + 1));
     } catch {
-      // continue
     }
   }
 
@@ -300,7 +343,6 @@ function repairJSON(raw) {
     try {
       return JSON.parse(text.slice(firstBracket, lastBracket + 1));
     } catch {
-      // continue
     }
   }
 
@@ -317,8 +359,114 @@ function slugify(str) {
 }
 
 // Validate and normalize extracted memo against required schema
+const JUNK_VALUES = new Set([
+  'string', 'null', 'string[]', 'string | null', 'number', 'boolean',
+  'undefined', 'array', 'object', 'any', 'unknown',
+  // Schema hint phrases the LLM copies verbatim
+  'service1', 'service2',
+  'what counts as emergency', 'what counts as an emergency',
+  'how emergencies are routed', 'how non-emergencies are handled',
+  'transfer rules', 'open questions',
+  'crm or tools the client uses', 'the client company name',
+  'summary or null', 'address or null', 'brief call summary',
+  'days of week or null', 'start time or null', 'end time or null',
+  'timezone or null', 'derived-from-company-name',
+  // LLM filler phrases
+  'not mentioned', 'not mentioned in this chunk', 'not specified',
+  'not discussed', 'not provided', 'not confirmed', 'not available',
+  'n/a', 'none', 'none mentioned', 'unknown at this time',
+  'to be determined', 'tbd', 'pending',
+  // Generic placeholder routing rules
+  'call to service owner', 'call to backup service owner',
+  'first responder', 'equipment repair', 'emergency plumber',
+  'forward to owner', 'forward to service owner',
+  // Clara/platform references that should never appear as client data
+  'clara', 'clara ai', 'clara answers', 'clara answer',
+  "phone to claire's team for immediate assistance",
+  "forward to claire's team for further assistance",
+  "phone to clara's team for immediate assistance",
+  "forward to clara's team for further assistance",
+]);
+
+// Phrases that indicate the LLM wrote a description instead of a real value
+const DESCRIPTIVE_JUNK_PATTERNS = [
+  /^not mentioned/i,
+  /^not specified/i,
+  /^not discussed/i,
+  /^not provided/i,
+  /^not confirmed/i,
+  /^no \w+ (was |were )?(mentioned|provided|discussed|specified|given)/i,
+  /^the system will/i,
+  /^the service will/i,
+  /^the (ai|agent|assistant|platform) (will|can|should)/i,
+  /^this (field|information|detail)/i,
+  /^clara (will|can|should|is)/i,
+  /^contact .* for (immediate |further )?assistance$/i,
+  /^(call|phone|forward|transfer) to (clara|claire)/i,
+];
+
+function isJunkValue(val) {
+  if (typeof val !== 'string') return false;
+  const trimmed = val.trim();
+  const lower = trimmed.toLowerCase();
+  if (JUNK_VALUES.has(lower)) return true;
+  if (/^<.*>$/.test(lower)) return true;
+  for (const pattern of DESCRIPTIVE_JUNK_PATTERNS) {
+    if (pattern.test(trimmed)) return true;
+  }
+  return false;
+}
+
+// Detect values that reference Clara (the platform) instead of the client
+function isClaraReference(val) {
+  if (typeof val !== 'string') return false;
+  const lower = val.trim().toLowerCase();
+  if (/\bclara\b/i.test(lower) || /\bclaire'?s?\b/i.test(lower)) return true;
+  return false;
+}
+
+// Remove duplicate services: case-insensitive, substring containment, and synonym matching
+function deduplicateServices(services) {
+  if (!Array.isArray(services) || services.length === 0) return services;
+
+  const normalize = (s) => s.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+
+  const kept = [];
+  for (const svc of services) {
+    const norm = normalize(svc);
+    // Skip if a kept item already covers this one (or vice versa)
+    let dominated = false;
+    for (let i = 0; i < kept.length; i++) {
+      const keptNorm = normalize(kept[i]);
+      // If one contains the other, keep the shorter (more specific) one
+      if (keptNorm.includes(norm) || norm.includes(keptNorm)) {
+        if (svc.length < kept[i].length) {
+          kept[i] = svc;
+        }
+        dominated = true;
+        break;
+      }
+      if (keptNorm === norm) {
+        dominated = true;
+        break;
+      }
+    }
+    if (!dominated) {
+      kept.push(svc);
+    }
+  }
+  return kept;
+}
+
 function validateMemo(raw) {
   const memo = { ...raw };
+
+  // --- Fix company_name if LLM put Clara ---
+  const CLARA_NAMES = ['clara', 'clara answers', 'clara ai', 'clara answer'];
+  if (memo.company_name && CLARA_NAMES.includes(memo.company_name.trim().toLowerCase())) {
+    logger.warn(`company_name was "${memo.company_name}" (service provider). Resetting to null.`);
+    memo.company_name = null;
+  }
 
   const nullableStrings = [
     'company_name',
@@ -330,10 +478,40 @@ function validateMemo(raw) {
     if (memo[field] !== null && typeof memo[field] !== 'string') {
       memo[field] = memo[field] != null ? String(memo[field]) : null;
     }
+    // Treat string "null" as actual null
+    if (typeof memo[field] === 'string' && memo[field].trim().toLowerCase() === 'null') {
+      memo[field] = null;
+    }
+    // Treat descriptive junk as null (e.g. "Not mentioned in this chunk")
+    if (typeof memo[field] === 'string' && isJunkValue(memo[field])) {
+      logger.warn(`${field} contained junk value: "${memo[field]}". Setting to null.`);
+      memo[field] = null;
+    }
+  }
+
+  // --- Validate office_address: must look like a physical address, not a URL/email ---
+  if (memo.office_address) {
+    const addr = memo.office_address.trim().toLowerCase();
+    if (/\.(com|net|org|io|co|ca|us)\b/i.test(addr) || addr.includes('@') || addr.startsWith('http')) {
+      logger.warn(`office_address looks like a URL/email, not physical address: "${memo.office_address}". Setting to null.`);
+      memo.office_address = null;
+    }
   }
 
   if (typeof memo.notes !== 'string') {
     memo.notes = memo.notes != null ? String(memo.notes) : '';
+  }
+  // Truncate excessively long notes to ~3 sentences (roughly 500 chars)
+  if (memo.notes.length > 500) {
+    // Try to cut at a sentence boundary
+    const sentences = memo.notes.match(/[^.!?]+[.!?]+/g) || [memo.notes];
+    let truncated = '';
+    for (const s of sentences) {
+      if ((truncated + s).length > 500) break;
+      truncated += s;
+    }
+    memo.notes = truncated.trim() || memo.notes.slice(0, 500).trim();
+    logger.warn('Notes truncated to ~500 chars');
   }
 
   const arrayFields = [
@@ -353,7 +531,21 @@ function validateMemo(raw) {
         memo[field] = [];
       }
     }
-    memo[field] = memo[field].map((v) => (typeof v === 'string' ? v : String(v)));
+    memo[field] = memo[field]
+      .map((v) => (typeof v === 'string' ? v : String(v)))
+      .filter((v) => !isJunkValue(v) && v.trim().length > 0)
+      .filter((v) => !isClaraReference(v));
+  }
+
+  // Deduplicate services (case-insensitive + substring containment)
+  memo.services_supported = deduplicateServices(memo.services_supported);
+
+  // Stringify any object values that slipped through (e.g., business_hours as object in string field)
+  for (const field of nullableStrings) {
+    if (memo[field] !== null && typeof memo[field] === 'object') {
+      logger.warn(`${field} was an object instead of string. Setting to null.`);
+      memo[field] = null;
+    }
   }
 
   if (!memo.business_hours || typeof memo.business_hours !== 'object') {
@@ -413,7 +605,6 @@ async function extractFromTranscript(transcriptText, options = {}) {
 
   const model = options.model || (await pickModel());
 
-  // Chunk the transcript if it exceeds the per-request limit
   const chunks = chunkTranscript(transcriptText);
 
   if (chunks.length === 1) {

@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clara Pipeline Dashboard</title>
+  <style>
+    :root {
+      --bg: #f3f6fb;
+      --panel: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #d8e2f0;
+      --primary: #0f4c81;
+      --primary-2: #1e6bb8;
+      --good: #0f766e;
+      --warn: #b45309;
+      --bad: #b91c1c;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 400px at 20% -10%, #dbeafe 0%, transparent 60%),
+        radial-gradient(1200px 500px at 100% -20%, #cffafe 0%, transparent 55%),
+        var(--bg);
+    }
+
+    .wrap {
+      max-width: 1180px;
+      margin: 24px auto 60px;
+      padding: 0 16px;
+    }
+
+    .header {
+      background: linear-gradient(120deg, #0f4c81, #1e6bb8);
+      color: #fff;
+      border-radius: 12px;
+      padding: 18px 20px;
+      box-shadow: 0 8px 24px rgba(15, 76, 129, 0.22);
+    }
+
+    .header h1 {
+      margin: 0 0 4px;
+      font-size: 22px;
+      letter-spacing: 0.2px;
+    }
+
+    .header p {
+      margin: 0;
+      font-size: 14px;
+      opacity: 0.95;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 14px;
+      margin-top: 16px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: 0 5px 14px rgba(15, 23, 42, 0.06);
+    }
+
+    .card h2 {
+      margin: 0 0 10px;
+      font-size: 16px;
+      color: #12355a;
+    }
+
+    .col-6 { grid-column: span 6; }
+    .col-12 { grid-column: span 12; }
+
+    @media (max-width: 900px) {
+      .col-6 { grid-column: span 12; }
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    input[type="file"], select {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 9px;
+      background: #fff;
+      color: var(--text);
+      min-width: 200px;
+    }
+
+    button {
+      border: 1px solid #c7d6ea;
+      background: #fff;
+      color: #12355a;
+      border-radius: 8px;
+      padding: 8px 11px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: 120ms ease;
+    }
+
+    button:hover { transform: translateY(-1px); }
+    button.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+    button.primary:hover { background: var(--primary-2); }
+    button.warn { color: #fff; background: var(--warn); border-color: var(--warn); }
+    button.danger { color: #fff; background: var(--bad); border-color: var(--bad); }
+
+    .small { font-size: 12px; color: var(--muted); }
+
+    .list {
+      margin: 8px 0 0;
+      padding: 0;
+      list-style: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      max-height: 220px;
+      overflow: auto;
+      background: #fafcff;
+    }
+
+    .list li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 10px;
+      border-bottom: 1px solid #e8eff9;
+      font-size: 13px;
+      gap: 10px;
+    }
+
+    .list li:last-child { border-bottom: none; }
+    .mono { font-family: Consolas, "Courier New", monospace; word-break: break-word; }
+
+    .status {
+      margin-top: 8px;
+      min-height: 20px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .status.ok { color: var(--good); }
+    .status.err { color: var(--bad); }
+
+    .diff-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 10px 0;
+      font-size: 13px;
+    }
+
+    .pill {
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #f8fbff;
+    }
+
+    .diff-block {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 10px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .diff-head {
+      background: #f0f6ff;
+      border-bottom: 1px solid var(--border);
+      padding: 8px 10px;
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .diff-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+    }
+
+    .pane {
+      padding: 10px;
+      border-right: 1px solid #edf2fa;
+      font-size: 12px;
+      overflow: auto;
+      max-height: 180px;
+      background: #fcfdff;
+    }
+
+    .pane:last-child { border-right: none; }
+    .pane .label { display: block; color: var(--muted); margin-bottom: 4px; font-weight: 700; }
+
+    /* --- Run section enhancements --- */
+    .run-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      margin-top: 10px;
+      font-size: 13px;
+      border: 1px solid var(--border);
+      background: #f8fbff;
+    }
+    .run-bar .dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .run-bar.idle .dot { background: #9ca3af; }
+    .run-bar.running .dot { background: #22c55e; animation: pulse 1s infinite; }
+    .run-bar.stopping .dot { background: #f59e0b; animation: pulse 1s infinite; }
+    .run-bar.error .dot { background: #ef4444; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .run-bar .info { flex: 1; }
+    .run-bar .info strong { color: var(--text); }
+    .run-bar .info span { color: var(--muted); margin-left: 6px; }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .summary-item {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      background: #f8fbff;
+      text-align: center;
+    }
+    .summary-item .val {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+    .summary-item .lbl {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .summary-item.err .val { color: var(--bad); }
+    .summary-item.dur .val { font-size: 16px; color: var(--good); }
+
+    /* Diff added/removed badges */
+    .diff-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+    .badge {
+      font-size: 11px; padding: 2px 7px; border-radius: 4px;
+      font-family: Consolas, monospace;
+    }
+    .badge.add { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .badge.rm { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; text-decoration: line-through; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <h1>Clara AI Pipeline Dashboard</h1>
+      <p>Manage input files, run batch flow, and view per-account v1 to v2 diffs.</p>
+    </div>
+
+    <div class="grid">
+      <section class="card col-6">
+        <h2>1) Demo Files</h2>
+        <div class="row">
+          <input id="demoFile" type="file" accept=".txt,.json,.m4a,.mp3,.wav,.webm,.ogg,.flac" />
+          <button class="primary" onclick="uploadFile('demo')">Upload to Demo Folder</button>
+        </div>
+        <div class="small">Target folder: <span class="mono">inputs/demo</span></div>
+        <ul id="demoList" class="list"></ul>
+      </section>
+
+      <section class="card col-6">
+        <h2>2) Onboarding Files</h2>
+        <div class="row">
+          <input id="onboardingFile" type="file" accept=".txt,.json,.m4a,.mp3,.wav,.webm,.ogg,.flac" />
+          <button class="primary" onclick="uploadFile('onboarding')">Upload to Onboarding Folder</button>
+        </div>
+        <div class="small">Target folder: <span class="mono">inputs/onboarding</span></div>
+        <ul id="onboardingList" class="list"></ul>
+      </section>
+
+      <section class="card col-12">
+        <h2>3) Run Pipeline</h2>
+        <div class="row">
+          <select id="batchMode">
+            <option value="full">Full Pipeline (Demo + Onboarding)</option>
+            <option value="demo-only">Demo Only (v1 generation)</option>
+            <option value="onboard-only">Onboarding Only (v2 update)</option>
+          </select>
+          <button class="warn" onclick="runBatch()">&#9654; Run</button>
+          <button onclick="refreshAll()">&#8635; Refresh</button>
+        </div>
+        <div id="controlBar" class="run-bar idle">
+          <div class="dot"></div>
+          <div class="info"><strong>Idle</strong><span>No pipeline running</span></div>
+        </div>
+        <div id="runSummary"></div>
+        <div id="runStatus" class="status"></div>
+      </section>
+
+      <section class="card col-12">
+        <h2>4) Diff Viewer (from <span class="mono">changes.json</span>)</h2>
+        <div class="row">
+          <select id="accountSelect"></select>
+          <button class="primary" onclick="loadDiff()">Load Diff</button>
+        </div>
+        <div id="diffMeta" class="diff-meta"></div>
+        <div id="diffContent"></div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    async function request(url, opts) {
+      const res = await fetch(url, opts);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || ('Request failed: ' + res.status));
+      return data;
+    }
+
+    function setStatus(elId, text, ok) {
+      const el = document.getElementById(elId);
+      el.textContent = text;
+      el.className = 'status ' + (ok ? 'ok' : 'err');
+    }
+
+    function renderFileList(type, files) {
+      const ul = document.getElementById(type + 'List');
+      ul.innerHTML = '';
+      if (!files.length) {
+        const li = document.createElement('li');
+        li.innerHTML = '<span class="small">No files found.</span>';
+        ul.appendChild(li);
+        return;
+      }
+
+      for (const name of files) {
+        const li = document.createElement('li');
+        const left = document.createElement('span');
+        left.className = 'mono';
+        left.textContent = name;
+
+        const del = document.createElement('button');
+        del.className = 'danger';
+        del.textContent = 'Remove';
+        del.onclick = () => deleteFile(type, name);
+
+        li.appendChild(left);
+        li.appendChild(del);
+        ul.appendChild(li);
+      }
+    }
+
+    async function refreshFiles(type) {
+      try {
+        const data = await request('/ui/data/files?type=' + encodeURIComponent(type));
+        renderFileList(type, data.files || []);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function uploadFile(type) {
+      try {
+        const input = document.getElementById(type + 'File');
+        const file = input.files && input.files[0];
+        if (!file) return alert('Choose a file first.');
+
+        const fd = new FormData();
+        fd.append('file', file);
+
+        await request('/ui/data/upload?type=' + encodeURIComponent(type), {
+          method: 'POST',
+          body: fd,
+        });
+
+        input.value = '';
+        await refreshFiles(type);
+        setStatus('runStatus', 'Uploaded ' + file.name + ' to ' + type + ' folder.', true);
+      } catch (err) {
+        setStatus('runStatus', err.message, false);
+      }
+    }
+
+    async function deleteFile(type, name) {
+      if (!confirm('Delete file: ' + name + ' ?')) return;
+      try {
+        await request('/ui/data/files?type=' + encodeURIComponent(type) + '&name=' + encodeURIComponent(name), {
+          method: 'DELETE',
+        });
+        await refreshFiles(type);
+        setStatus('runStatus', 'Deleted ' + name, true);
+      } catch (err) {
+        setStatus('runStatus', err.message, false);
+      }
+    }
+
+    const MODE_LABELS = {
+      'full': 'Full Pipeline',
+      'demo-only': 'Demo Only',
+      'onboard-only': 'Onboarding Only',
+    };
+
+    const N8N_BASE = 'http://localhost:5678';
+
+    async function runBatch() {
+      const mode = document.getElementById('batchMode').value;
+      setStatus('runStatus', '', true);
+      document.getElementById('runSummary').innerHTML = '';
+      updateControlBar({ busy: true, mode, started_at: new Date().toISOString() });
+
+      // Route through n8n webhook based on mode
+      let webhookPath;
+      if (mode === 'demo-only') webhookPath = '/webhook/clara-demo';
+      else if (mode === 'onboard-only') webhookPath = '/webhook/clara-onboarding';
+      else webhookPath = '/webhook/clara-batch';
+
+      try {
+        const res = await fetch(N8N_BASE + webhookPath, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode }),
+        });
+        const summary = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(summary.error || ('n8n request failed: ' + res.status));
+        renderSummary(summary);
+        const errCount = (summary.errors || []).length;
+        setStatus('runStatus', errCount ? errCount + ' error(s) occurred during run' : 'Pipeline completed via n8n', !errCount);
+        await refreshControl();
+        await refreshAccounts();
+      } catch (err) {
+        setStatus('runStatus', err.message, false);
+        await refreshControl();
+      }
+    }
+
+    function renderSummary(summary) {
+      const el = document.getElementById('runSummary');
+      if (!summary || summary.accounts_processed === undefined) { el.innerHTML = ''; return; }
+      const errCount = (summary.errors || []).length;
+      el.innerHTML = `
+        <div class="summary-grid">
+          <div class="summary-item"><div class="val">${summary.accounts_processed || 0}</div><div class="lbl">Accounts</div></div>
+          <div class="summary-item"><div class="val">${summary.v1_generated || 0}</div><div class="lbl">v1 Generated</div></div>
+          <div class="summary-item"><div class="val">${summary.v2_generated || 0}</div><div class="lbl">v2 Generated</div></div>
+          <div class="summary-item ${errCount ? 'err' : ''}"><div class="val">${errCount}</div><div class="lbl">Errors</div></div>
+          <div class="summary-item dur"><div class="val">${summary.duration_readable || '-'}</div><div class="lbl">Duration</div></div>
+        </div>`;
+    }
+
+    function updateControlBar(control) {
+      const bar = document.getElementById('controlBar');
+      if (!control.busy) {
+        bar.className = 'run-bar idle';
+        bar.querySelector('.info').innerHTML = '<strong>Idle</strong><span>No pipeline running</span>';
+
+      } else {
+        const modeLabel = MODE_LABELS[control.mode] || control.mode || 'Full Pipeline';
+        const started = control.started_at ? new Date(control.started_at).toLocaleTimeString() : '';
+        bar.className = 'run-bar running';
+        bar.querySelector('.info').innerHTML = '<strong>Running \u2014 ' + escapeHtml(modeLabel) + '</strong>'
+          + (started ? '<span>Started at ' + started + '</span>' : '');
+      }
+    }
+
+    async function refreshControl() {
+      try {
+        const control = await request('/pipeline/control');
+        updateControlBar(control);
+      } catch (err) {
+        const bar = document.getElementById('controlBar');
+        bar.className = 'run-bar error';
+        bar.querySelector('.info').innerHTML = '<strong>Error</strong><span>Unable to reach server</span>';
+      }
+    }
+
+    async function refreshAccounts() {
+      const sel = document.getElementById('accountSelect');
+      const data = await request('/ui/data/accounts');
+      const accounts = data.accounts || [];
+      sel.innerHTML = '';
+      if (!accounts.length) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = 'No accounts available';
+        sel.appendChild(opt);
+        return;
+      }
+      for (const acc of accounts) {
+        const opt = document.createElement('option');
+        opt.value = acc;
+        opt.textContent = acc;
+        sel.appendChild(opt);
+      }
+    }
+
+    function pretty(value) {
+      if (value === null || value === undefined) return String(value);
+      if (typeof value === 'string') return value;
+      return JSON.stringify(value, null, 2);
+    }
+
+    function renderDiff(diff) {
+      const meta = document.getElementById('diffMeta');
+      const content = document.getElementById('diffContent');
+      meta.innerHTML = '';
+      content.innerHTML = '';
+
+      const pills = [
+        'account: ' + (diff.account_id || ''),
+        'from: ' + (diff.from_version || ''),
+        'to: ' + (diff.to_version || ''),
+        'changed fields: ' + (diff.total_fields_changed || 0),
+        'time: ' + (diff.timestamp || ''),
+      ];
+      for (const text of pills) {
+        const p = document.createElement('span');
+        p.className = 'pill mono';
+        p.textContent = text;
+        meta.appendChild(p);
+      }
+
+      const changes = diff.changes || {};
+      const keys = Object.keys(changes);
+      if (!keys.length) {
+        content.innerHTML = '<div class="small">No changes found in changes.json.</div>';
+        return;
+      }
+
+      for (const key of keys) {
+        const change = changes[key];
+        const block = document.createElement('div');
+        block.className = 'diff-block';
+
+        const head = document.createElement('div');
+        head.className = 'diff-head mono';
+        head.textContent = key;
+
+        const body = document.createElement('div');
+        body.className = 'diff-body';
+
+        const oldPane = document.createElement('div');
+        oldPane.className = 'pane';
+        oldPane.innerHTML = '<span class="label">v1 (old)</span><pre class="mono">' + escapeHtml(pretty(change.old)) + '</pre>';
+
+        const newPane = document.createElement('div');
+        newPane.className = 'pane';
+        newPane.innerHTML = '<span class="label">v2 (new)</span><pre class="mono">' + escapeHtml(pretty(change.new)) + '</pre>';
+
+        body.appendChild(oldPane);
+        body.appendChild(newPane);
+
+        block.appendChild(head);
+        block.appendChild(body);
+
+        // Show added/removed badges for array fields
+        if (change.added && change.added.length || change.removed && change.removed.length) {
+          const badges = document.createElement('div');
+          badges.className = 'diff-badges';
+          badges.style.padding = '6px 10px';
+          for (const a of (change.added || [])) {
+            const b = document.createElement('span');
+            b.className = 'badge add';
+            b.textContent = '+ ' + a;
+            badges.appendChild(b);
+          }
+          for (const r of (change.removed || [])) {
+            const b = document.createElement('span');
+            b.className = 'badge rm';
+            b.textContent = '\u2212 ' + r;
+            badges.appendChild(b);
+          }
+          block.appendChild(badges);
+        }
+
+        content.appendChild(block);
+      }
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    async function loadDiff() {
+      const accountId = document.getElementById('accountSelect').value;
+      if (!accountId) return;
+      try {
+        const diff = await request('/ui/data/diff/' + encodeURIComponent(accountId));
+        renderDiff(diff);
+      } catch (err) {
+        document.getElementById('diffMeta').innerHTML = '';
+        document.getElementById('diffContent').innerHTML = '<div class="status err">' + err.message + '</div>';
+      }
+    }
+
+    async function refreshAll() {
+      await Promise.all([refreshFiles('demo'), refreshFiles('onboarding'), refreshAccounts(), refreshControl()]);
+    }
+
+    refreshAll().catch(console.error);
+  </script>
+</body>
+</html>

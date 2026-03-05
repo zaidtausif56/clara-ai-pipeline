@@ -28,10 +28,22 @@ const logger = require('./logger');
 const PORT = process.env.PORT || 3000;
 const ROOT = path.resolve(__dirname, '..');
 const ACCOUNTS_DIR = path.join(ROOT, 'outputs', 'accounts');
+const DEMO_DIR = path.join(ROOT, 'inputs', 'demo');
+const ONBOARDING_DIR = path.join(ROOT, 'inputs', 'onboarding');
 const UPLOADS_DIR = path.join(ROOT, 'inputs', 'uploads');
+const PUBLIC_DIR = path.join(ROOT, 'public');
 
-// Ensure uploads dir exists
+const pipelineControl = {
+  busy: false,
+  mode: null,
+  started_at: null,
+  stop_requested: false,
+};
+
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+if (!fs.existsSync(PUBLIC_DIR)) fs.mkdirSync(PUBLIC_DIR, { recursive: true });
+if (!fs.existsSync(DEMO_DIR)) fs.mkdirSync(DEMO_DIR, { recursive: true });
+if (!fs.existsSync(ONBOARDING_DIR)) fs.mkdirSync(ONBOARDING_DIR, { recursive: true });
 
 function parseBody(req) {
   return new Promise((resolve, reject) => {
@@ -85,13 +97,11 @@ function parseMultipart(req, contentType) {
 
           const filenameMatch = headerStr.match(/filename="([^"]+)"/);
           if (filenameMatch) {
-            // This is a file field
             const filename = filenameMatch[1];
             // Remove trailing \r\n from content
             const fileContent = content.slice(0, content.length - 2);
             result._files[fieldName] = { filename, data: fileContent };
           } else {
-            // This is a text field
             result[fieldName] = content.toString().trim();
           }
         }
@@ -140,9 +150,60 @@ function writeJSON(filePath, data) {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
 }
 
+function sendFile(res, filePath, contentType = 'text/html; charset=utf-8') {
+  if (!fs.existsSync(filePath)) {
+    return sendJSON(res, 404, { error: 'File not found' });
+  }
+  res.writeHead(200, { 'Content-Type': contentType });
+  res.end(fs.readFileSync(filePath));
+}
+
+function sanitizeFilename(filename) {
+  const base = path.basename(String(filename || '').trim());
+  return base.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+function getInputDirByType(type) {
+  if (type === 'demo') return DEMO_DIR;
+  if (type === 'onboarding') return ONBOARDING_DIR;
+  return null;
+}
+
+function listInputFilesByType(type) {
+  const dir = getInputDirByType(type);
+  if (!dir) return null;
+  if (!fs.existsSync(dir)) return [];
+
+  return fs.readdirSync(dir)
+    .filter((name) => {
+      const full = path.join(dir, name);
+      if (!fs.statSync(full).isFile()) return false;
+      // Hide cached transcripts generated from audio in UI list.
+      if (name.endsWith('.transcript.txt')) return false;
+      return true;
+    })
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function listAccounts() {
+  if (!fs.existsSync(ACCOUNTS_DIR)) return [];
+  return fs.readdirSync(ACCOUNTS_DIR)
+    .filter((name) => {
+      const full = path.join(ACCOUNTS_DIR, name);
+      return fs.existsSync(full) && fs.statSync(full).isDirectory();
+    })
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function readAccountDiff(accountId) {
+  const safeId = sanitizeFilename(accountId);
+  const diffPath = path.join(ACCOUNTS_DIR, safeId, 'changes.json');
+  if (!fs.existsSync(diffPath)) return null;
+  return JSON.parse(fs.readFileSync(diffPath, 'utf-8'));
+}
+
 // Helper: extract transcript from request body (handles both text and audio uploads)
 async function getTranscriptFromBody(body) {
-  // If body has a text transcript, use it directly
   if (body.transcript) {
     return { transcript: body.transcript, source: 'text' };
   }
@@ -156,7 +217,6 @@ async function getTranscriptFromBody(body) {
         throw new Error(`Unsupported audio format: ${ext}. Supported: ${AUDIO_EXTENSIONS.join(', ')}`);
       }
 
-      // Write uploaded file to disk temporarily
       const tmpPath = path.join(UPLOADS_DIR, `${Date.now()}-${fileField.filename}`);
       fs.writeFileSync(tmpPath, fileField.data);
       logger.info(`Saved uploaded audio: ${fileField.filename} (${fileField.data.length} bytes)`);
@@ -165,7 +225,6 @@ async function getTranscriptFromBody(body) {
         const transcript = await transcribeAudio(tmpPath);
         return { transcript, source: 'audio', audioFile: fileField.filename };
       } finally {
-        // Clean up temp file
         try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
       }
     }
@@ -292,12 +351,26 @@ async function handleOnboarding(req, res) {
 // Route: POST /pipeline/run
 // Body: { "mode": "full" | "demo-only" | "onboard-only" } (optional)
 async function handleBatchRun(req, res) {
+  if (pipelineControl.busy) {
+    return sendJSON(res, 409, {
+      error: 'Another pipeline request is already running. Stop it first or wait for completion.',
+      control: pipelineControl,
+    });
+  }
+
   try {
     const body = await parseBody(req);
     const options = {
       demoOnly: body.mode === 'demo-only',
       onboardOnly: body.mode === 'onboard-only',
+      shouldStop: () => pipelineControl.stop_requested,
     };
+
+    pipelineControl.busy = true;
+    pipelineControl.mode = body.mode || 'full';
+    pipelineControl.started_at = new Date().toISOString();
+    pipelineControl.stop_requested = false;
+
     await runAll(options);
 
     const summaryPath = path.join(ROOT, 'outputs', 'batch_summary.json');
@@ -309,12 +382,136 @@ async function handleBatchRun(req, res) {
   } catch (err) {
     logger.error(`/pipeline/run error: ${err.message}`);
     sendJSON(res, 500, { error: err.message });
+  } finally {
+    pipelineControl.busy = false;
+    pipelineControl.mode = null;
+    pipelineControl.started_at = null;
+    pipelineControl.stop_requested = false;
   }
+}
+
+// Route: POST /pipeline/stop
+function handleStopPipeline(res) {
+  if (!pipelineControl.busy) {
+    return sendJSON(res, 200, {
+      status: 'idle',
+      message: 'No running batch pipeline to stop.',
+      control: pipelineControl,
+    });
+  }
+
+  pipelineControl.stop_requested = true;
+  logger.warn('Stop requested by user for running batch pipeline');
+  return sendJSON(res, 200, {
+    status: 'stopping',
+    message: 'Stop requested. Current in-flight step will finish, then run will halt.',
+    control: pipelineControl,
+  });
+}
+
+// Route: GET /pipeline/control
+function handlePipelineControl(res) {
+  return sendJSON(res, 200, pipelineControl);
+}
+
+// Route: GET /ui/data/files?type=demo|onboarding
+function handleListFiles(reqUrl, res) {
+  const type = reqUrl.searchParams.get('type');
+  const files = listInputFilesByType(type);
+  if (!files) return sendJSON(res, 400, { error: 'Invalid type. Use demo or onboarding.' });
+  return sendJSON(res, 200, { type, files });
+}
+
+// Route: POST /ui/data/upload?type=demo|onboarding
+async function handleUploadFile(req, reqUrl, res) {
+  try {
+    const type = reqUrl.searchParams.get('type');
+    const targetDir = getInputDirByType(type);
+    if (!targetDir) {
+      return sendJSON(res, 400, { error: 'Invalid type. Use demo or onboarding.' });
+    }
+
+    const body = await parseBody(req);
+    if (!body._files) {
+      return sendJSON(res, 400, { error: 'Use multipart/form-data and attach a file.' });
+    }
+
+    const fileField = body._files.file || Object.values(body._files)[0];
+    if (!fileField || !fileField.filename || !fileField.data) {
+      return sendJSON(res, 400, { error: 'No file found in request.' });
+    }
+
+    const safeName = sanitizeFilename(fileField.filename);
+    if (!safeName) {
+      return sendJSON(res, 400, { error: 'Invalid filename.' });
+    }
+
+    const destPath = path.join(targetDir, safeName);
+    fs.writeFileSync(destPath, fileField.data);
+
+    logger.info('Uploaded input file', { type, filename: safeName, bytes: fileField.data.length });
+    return sendJSON(res, 200, { status: 'success', type, filename: safeName });
+  } catch (err) {
+    logger.error(`/ui/data/upload error: ${err.message}`);
+    return sendJSON(res, 500, { error: err.message });
+  }
+}
+
+// Route: DELETE /ui/data/files?type=demo|onboarding&name=<filename>
+function handleDeleteFile(reqUrl, res) {
+  const type = reqUrl.searchParams.get('type');
+  const name = reqUrl.searchParams.get('name');
+  const targetDir = getInputDirByType(type);
+  if (!targetDir) {
+    return sendJSON(res, 400, { error: 'Invalid type. Use demo or onboarding.' });
+  }
+
+  const safeName = sanitizeFilename(name);
+  if (!safeName) {
+    return sendJSON(res, 400, { error: 'Invalid filename.' });
+  }
+
+  const fullPath = path.join(targetDir, safeName);
+  if (!fs.existsSync(fullPath)) {
+    return sendJSON(res, 404, { error: 'File not found.' });
+  }
+
+  fs.unlinkSync(fullPath);
+
+  // Also cleanup cached transcript generated from audio for this file.
+  const ext = path.extname(safeName);
+  if (ext) {
+    const base = safeName.slice(0, -ext.length);
+    const cachedTranscript = path.join(targetDir, `${base}.transcript.txt`);
+    if (fs.existsSync(cachedTranscript)) {
+      try { fs.unlinkSync(cachedTranscript); } catch { /* ignore cleanup errors */ }
+    }
+  }
+
+  logger.info('Deleted input file', { type, filename: safeName });
+  return sendJSON(res, 200, { status: 'success', type, filename: safeName });
+}
+
+// Route: GET /ui/data/accounts
+function handleListAccounts(res) {
+  const accounts = listAccounts();
+  return sendJSON(res, 200, { accounts });
+}
+
+// Route: GET /ui/data/diff/<account_id>
+function handleGetDiff(pathname, res) {
+  const accountId = decodeURIComponent(pathname.replace('/ui/data/diff/', ''));
+  const diff = readAccountDiff(accountId);
+  if (!diff) {
+    return sendJSON(res, 404, { error: `changes.json not found for account: ${accountId}` });
+  }
+  return sendJSON(res, 200, diff);
 }
 
 // Route handler
 async function handleRequest(req, res) {
-  const url = req.url;
+  const reqUrl = new URL(req.url, `http://localhost:${PORT}`);
+  const url = reqUrl.pathname;
   const method = req.method;
 
   // CORS headers for n8n
@@ -331,8 +528,51 @@ async function handleRequest(req, res) {
     return sendJSON(res, 200, { status: 'ok', timestamp: new Date().toISOString() });
   }
 
+  // Reject concurrent mutating requests while a batch run is active.
+  const isMutating = method === 'POST' || method === 'DELETE';
+  const allowsDuringRun = url === '/pipeline/stop' || url === '/pipeline/control';
+  if (pipelineControl.busy && isMutating && !allowsDuringRun) {
+    return sendJSON(res, 409, {
+      error: 'A batch run is in progress. Stop it first or wait until it finishes.',
+      control: pipelineControl,
+    });
+  }
+
+  // UI routes
+  if ((url === '/' || url === '/ui') && method === 'GET') {
+    return sendFile(res, path.join(PUBLIC_DIR, 'index.html'));
+  }
+
+  if (url === '/ui/data/files' && method === 'GET') {
+    return handleListFiles(reqUrl, res);
+  }
+
+  if (url === '/ui/data/upload' && method === 'POST') {
+    return handleUploadFile(req, reqUrl, res);
+  }
+
+  if (url === '/ui/data/files' && method === 'DELETE') {
+    return handleDeleteFile(reqUrl, res);
+  }
+
+  if (url === '/ui/data/accounts' && method === 'GET') {
+    return handleListAccounts(res);
+  }
+
+  if (url.startsWith('/ui/data/diff/') && method === 'GET') {
+    return handleGetDiff(url, res);
+  }
+
   if (url === '/pipeline/run' && method === 'POST') {
     return handleBatchRun(req, res);
+  }
+
+  if (url === '/pipeline/stop' && method === 'POST') {
+    return handleStopPipeline(res);
+  }
+
+  if (url === '/pipeline/control' && method === 'GET') {
+    return handlePipelineControl(res);
   }
 
   if (url === '/pipeline/demo' && method === 'POST') {
@@ -362,7 +602,16 @@ const server = http.createServer(handleRequest);
 server.listen(PORT, () => {
   logger.info(`Pipeline API server running on http://localhost:${PORT}`);
   logger.info('Endpoints:');
+  logger.info('  GET  /                     - web dashboard');
+  logger.info('  GET  /ui                  - web dashboard');
+  logger.info('  GET  /ui/data/files       - list input files');
+  logger.info('  POST /ui/data/upload      - upload input file');
+  logger.info('  DELETE /ui/data/files     - delete input file');
+  logger.info('  GET  /ui/data/accounts    - list processed accounts');
+  logger.info('  GET  /ui/data/diff/:id    - read account changes');
   logger.info('  POST /pipeline/run          - batch run');
+  logger.info('  POST /pipeline/stop         - stop running batch run');
+  logger.info('  GET  /pipeline/control      - batch lock status');
   logger.info('  POST /pipeline/demo         - single demo extraction');
   logger.info('  POST /pipeline/onboarding   - single onboarding merge');
   logger.info('  GET  /pipeline/status        - all task statuses');

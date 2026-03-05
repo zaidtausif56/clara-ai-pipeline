@@ -10,7 +10,7 @@ const { extractFromTranscript, slugify } = require('./extract');
 const { generateAgentSpec } = require('./generateAgent');
 const { mergeMemos } = require('./merge');
 const { generateChangelog } = require('./diff');
-const { upsertTask, completeTask } = require('./taskTracker');
+const { upsertTask, completeTask, startNewRun } = require('./taskTracker');
 const { isAudioFile, readInputWithTranscription, AUDIO_EXTENSIONS } = require('./transcribe');
 const logger = require('./logger');
 
@@ -22,19 +22,40 @@ const MAPPING_FILE = path.join(INPUTS_DIR, 'mapping.json');
 const OUTPUTS_DIR = path.join(ROOT, 'outputs');
 const ACCOUNTS_DIR = path.join(OUTPUTS_DIR, 'accounts');
 const SUMMARY_FILE = path.join(OUTPUTS_DIR, 'batch_summary.json');
+const ACCOUNT_MAX_RETRIES = parseInt(process.env.ACCOUNT_MAX_RETRIES, 10) || 1;
 
 // Supported input extensions: .txt, .json (text), .m4a, .mp3, .wav, .webm, .ogg, .flac (audio)
 const SUPPORTED_EXTENSIONS = ['.txt', '.json', ...AUDIO_EXTENSIONS];
 
 function listInputFiles(dir) {
   if (!fs.existsSync(dir)) return [];
-  return fs
-    .readdirSync(dir)
+  const allFiles = fs.readdirSync(dir);
+
+  // Build a set of base names that have a .txt transcript (not .transcript.txt)
+  const txtBases = new Set();
+  for (const f of allFiles) {
+    if (f.endsWith('.transcript.txt')) continue;
+    if (f.toLowerCase().endsWith('.txt')) {
+      const base = path.basename(f, '.txt').toLowerCase();
+      txtBases.add(base);
+    }
+  }
+
+  return allFiles
     .filter((f) => {
       const ext = path.extname(f).toLowerCase();
       // Skip cached transcript files generated from audio
       if (f.endsWith('.transcript.txt')) return false;
-      return SUPPORTED_EXTENSIONS.includes(ext);
+      if (!SUPPORTED_EXTENSIONS.includes(ext)) return false;
+      // If a .txt transcript exists for this base name, skip the audio file
+      if (AUDIO_EXTENSIONS.includes(ext)) {
+        const base = path.basename(f, ext).toLowerCase();
+        if (txtBases.has(base)) {
+          logger.info(`Skipping audio file ${f} — text transcript already exists`);
+          return false;
+        }
+      }
+      return true;
     })
     .map((f) => path.join(dir, f));
 }
@@ -166,9 +187,9 @@ async function runPipelineA(accountId, demoFilePath, model) {
   const accountDir = path.join(ACCOUNTS_DIR, accountId);
   const v1Dir = path.join(accountDir, 'v1');
 
-  // Step 1: Extract (supports both text transcripts and audio files)
+  startNewRun(accountId, isAudioFile(demoFilePath) ? 'demo_transcribing' : 'demo_extracting', { file: demoFilePath });
+
   const isAudio = isAudioFile(demoFilePath);
-  upsertTask(accountId, isAudio ? 'demo_transcribing' : 'demo_extracting', { file: demoFilePath });
   if (isAudio) {
     logger.info(`Audio file detected, transcribing: ${path.basename(demoFilePath)}`);
   }
@@ -249,6 +270,12 @@ async function runPipelineB(accountId, onboardingFilePath, v1Memo, model) {
   return merged;
 }
 
+function assertNotStopped(shouldStop, stage) {
+  if (typeof shouldStop === 'function' && shouldStop()) {
+    throw new Error(`Run stopped by user during ${stage}`);
+  }
+}
+
 function createEmptyMemo(accountId) {
   return {
     account_id: accountId,
@@ -279,6 +306,7 @@ async function runAll(options = {}) {
   const startTime = Date.now();
   const demoOnly = options.demoOnly || false;
   const onboardOnly = options.onboardOnly || false;
+  const shouldStop = options.shouldStop;
 
   logger.info('=== Clara AI Pipeline - Batch Run ===');
   logger.info(`Mode: ${demoOnly ? 'Demo Only' : onboardOnly ? 'Onboarding Only' : 'Full Pipeline'}`);
@@ -319,16 +347,24 @@ async function runAll(options = {}) {
 
   // Pick model once for the whole batch
   const { pickModel } = require('./extract');
+  // Pre-check Ollama connectivity with retries
   let model;
-  try {
-    model = await pickModel();
-  } catch (err) {
-    logger.error(`Cannot connect to Ollama: ${err.message}`);
-    logger.error('Make sure Ollama is running: ollama serve');
-    process.exit(1);
+  for (let i = 0; i < 3; i++) {
+    try {
+      model = await pickModel();
+      break;
+    } catch (err) {
+      if (i < 2) {
+        logger.warn(`Ollama not ready (attempt ${i + 1}/3), retrying in ${3 * (i + 1)}s: ${err.message}`);
+        await new Promise((r) => setTimeout(r, 3000 * (i + 1)));
+      } else {
+        logger.error(`Cannot connect to Ollama after 3 attempts: ${err.message}`);
+        logger.error('Make sure Ollama is running: ollama serve');
+        process.exit(1);
+      }
+    }
   }
 
-  // Track results
   const results = {
     start_time: new Date(startTime).toISOString(),
     model_used: model,
@@ -338,50 +374,73 @@ async function runAll(options = {}) {
     errors: [],
   };
 
-  // Process each account
   for (const entry of mapping) {
+    assertNotStopped(shouldStop, 'batch loop');
+
     const { account_id, demo_file, onboarding_file } = entry;
     let v1Memo = null;
 
-    try {
-      // Pipeline A: Demo → v1
-      if (demo_file && !onboardOnly) {
-        if (!fs.existsSync(demo_file)) {
-          logger.warn(`Demo file not found: ${demo_file}`);
-          results.errors.push({ account_id, stage: 'demo', error: 'File not found' });
+    for (let attempt = 0; attempt <= ACCOUNT_MAX_RETRIES; attempt++) {
+      try {
+        assertNotStopped(shouldStop, `account ${account_id}`);
+
+        if (attempt > 0) {
+          const delay = 3000 * attempt;
+          logger.warn(`Retrying account ${account_id} (attempt ${attempt}/${ACCOUNT_MAX_RETRIES}) after ${delay}ms`);
+          await new Promise((r) => setTimeout(r, delay));
+        }
+
+        assertNotStopped(shouldStop, `account ${account_id} after retry delay`);
+
+        // Pipeline A: Demo → v1
+        if (demo_file && !onboardOnly) {
+          if (!fs.existsSync(demo_file)) {
+            logger.warn(`Demo file not found: ${demo_file}`);
+            results.errors.push({ account_id, stage: 'demo', error: 'File not found' });
+          } else {
+            assertNotStopped(shouldStop, `account ${account_id} before pipeline A`);
+            v1Memo = await runPipelineA(account_id, demo_file, model);
+            results.v1_generated++;
+          }
+        }
+
+        // Pipeline B: Onboarding → v2
+        if (onboarding_file && !demoOnly) {
+          if (!fs.existsSync(onboarding_file)) {
+            logger.warn(`Onboarding file not found: ${onboarding_file}`);
+            results.errors.push({ account_id, stage: 'onboarding', error: 'File not found' });
+          } else {
+            assertNotStopped(shouldStop, `account ${account_id} before pipeline B`);
+            await runPipelineB(account_id, onboarding_file, v1Memo, model);
+            results.v2_generated++;
+          }
+        }
+
+        // If demo only (no onboarding), mark as complete
+        if (demo_file && !onboarding_file && !onboardOnly) {
+          completeTask(account_id);
+        }
+
+        results.accounts_processed++;
+        break; // success — exit retry loop
+      } catch (err) {
+        if (attempt < ACCOUNT_MAX_RETRIES) {
+          logger.warn(`Account ${account_id} failed (attempt ${attempt}), will retry: ${err.message}`);
         } else {
-          v1Memo = await runPipelineA(account_id, demo_file, model);
-          results.v1_generated++;
+          logger.error(`Error processing ${account_id} after ${attempt + 1} attempts: ${err.message}`);
+          results.errors.push({ account_id, stage: 'unknown', error: err.message, attempts: attempt + 1 });
         }
       }
-
-      // Pipeline B: Onboarding → v2
-      if (onboarding_file && !demoOnly) {
-        if (!fs.existsSync(onboarding_file)) {
-          logger.warn(`Onboarding file not found: ${onboarding_file}`);
-          results.errors.push({ account_id, stage: 'onboarding', error: 'File not found' });
-        } else {
-          await runPipelineB(account_id, onboarding_file, v1Memo, model);
-          results.v2_generated++;
-        }
-      }
-
-      // If demo only (no onboarding), mark as complete
-      if (demo_file && !onboarding_file && !onboardOnly) {
-        completeTask(account_id);
-      }
-
-      results.accounts_processed++;
-    } catch (err) {
-      logger.error(`Error processing ${account_id}: ${err.message}`);
-      results.errors.push({ account_id, stage: 'unknown', error: err.message });
     }
   }
 
-  // Write batch summary
   results.end_time = new Date().toISOString();
   results.duration_ms = Date.now() - startTime;
   results.duration_readable = formatDuration(results.duration_ms);
+
+  if (typeof shouldStop === 'function' && shouldStop()) {
+    results.stopped = true;
+  }
 
   writeJSON(SUMMARY_FILE, results);
   logger.info(`\n${'='.repeat(60)}`);
